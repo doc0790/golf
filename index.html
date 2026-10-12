@@ -95,15 +95,32 @@ const CONFIG = {
   .quota-title .note { font-weight: 400; color: #9aabb8; font-size: 11px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
   .quota-item { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-  .slots { display: flex; gap: 4px; width: 248px; flex-shrink: 0; }
-  .slot { width: 30px; height: 16px; border-radius: 4px; border: 1.5px solid #dfe6ee; background: #fff; flex-shrink: 0; }
+  .quota-panel { background: #fff; border: 1px solid #e4eaf2; border-radius: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 24px; overflow: hidden; }
+  .qp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 13px 20px; border-bottom: 1px solid #eef2f6; }
+  .qp-title { font-size: 13px; font-weight: 700; color: #1a2535; }
+  .qp-legend { display: flex; gap: 12px; font-size: 11px; color: #7a8fa6; flex-wrap: wrap; }
+  .qp-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .qp-legend .slot { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
+  .qp-body { display: grid; grid-template-columns: 1fr 1.6fr 1fr 1.1fr; }
+  .qp-col { padding: 16px 20px 18px; border-left: 1px solid #eef2f6; min-width: 0; }
+  .qp-col:first-child { border-left: none; }
+  .qp-total { background: #fafbfc; }
+  .qp-label { font-size: 12px; font-weight: 700; color: #4a6070; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; white-space: nowrap; }
+  .qp-limit { font-weight: 500; color: #9aabb8; font-size: 11px; }
+  .dot-weekday { background: #2980b9; } .dot-saturday { background: #16a085; } .dot-sunday { background: #e74c3c; }
+  .qp-big { font-size: 28px; font-weight: 800; line-height: 1; color: #1a2535; margin-bottom: 12px; }
+  .qp-big span { font-size: 12px; font-weight: 600; color: #9aabb8; margin-left: 3px; }
+  .qp-big.zero { color: #b0bec5; }
+  .qp-sub { font-size: 11px; color: #7a8fa6; margin-top: 10px; }
+  .qp-sub b { color: #1a2535; } .qp-sub b.pend { color: #d68910; } .qp-sub b.overtxt { color: #c0392b; }
+  .slots { display: flex; gap: 4px; flex-wrap: wrap; }
+  .slot { width: 26px; height: 18px; border-radius: 4px; border: 1.5px solid #dfe6ee; background: #fff; flex-shrink: 0; }
   .slot.used.weekday  { background: #2980b9; border-color: #2980b9; }
   .slot.used.saturday { background: #16a085; border-color: #16a085; }
   .slot.used.sunday   { background: #e74c3c; border-color: #e74c3c; }
   .slot.pend { border-color: #f0b44c; background: repeating-linear-gradient(45deg,#f5c26b,#f5c26b 3px,#fde9c2 3px,#fde9c2 6px); }
   .slot.over { border: 1.5px dashed #c0392b; background: repeating-linear-gradient(45deg,#f1948a,#f1948a 3px,#fdecea 3px,#fdecea 6px); }
   .slot.gap  { margin-left: 8px; }
-  .quota-card { max-width: 720px; }
   .quota-item:last-child { margin-bottom: 0; }
   .quota-item-label { width: 44px; font-size: 11px; color: #9aabb8; font-weight: 600; }
   .quota-bar-wrap { flex: 1; background: #f0f4f8; border-radius: 6px; height: 8px; overflow: hidden; display: flex; }
@@ -194,9 +211,13 @@ const CONFIG = {
 
   @media (max-width: 900px) {
     .kpi-row { grid-template-columns: repeat(2,1fr); }
-    .quota-item { display: grid; grid-template-columns: 52px 1fr; row-gap: 6px; }
-    .slots { width: auto; grid-column: 1 / -1; order: 3; }
-    .slot { width: 26px; }
+    .qp-body { grid-template-columns: 1fr 1fr; }
+    .qp-col:nth-child(3) { border-left: none; }
+    .qp-col:nth-child(n+3) { border-top: 1px solid #eef2f6; }
+    .slot { width: 14px; height: 16px; }
+    .slots { gap: 3px; }
+    .qp-col { padding: 14px 14px 16px; }
+    .qp-legend { gap: 8px; }
     .month-label { font-size: 17px; min-width: 120px; margin: 0 10px; }
   }
   @media (max-width: 600px) {
@@ -236,32 +257,21 @@ const CONFIG = {
   <div id="pending-list"></div>
 </div>
 
-<div class="kpi-row">
-  <div class="kpi-card green">
-    <div class="kpi-label">이번 달 예약 (확정+요청)</div>
-    <div class="kpi-value" id="kpi-total">0 <span>건</span></div>
-    <div class="kpi-sub" id="kpi-sub"></div>
+<div class="quota-panel">
+  <div class="qp-head">
+    <div class="qp-title">이번 달 한도 현황</div>
+    <div class="qp-legend"><span><i class="slot used weekday"></i>확정</span><span><i class="slot pend"></i>요청</span><span><i class="slot empty"></i>잔여</span><span><i class="slot pend over"></i>한도 초과</span></div>
   </div>
-  <div class="kpi-card blue">
-    <div class="kpi-label" id="kpi-wd-label">주중 잔여</div>
-    <div class="kpi-value" id="kpi-wd">0 <span>회</span></div>
-    <div class="kpi-sub" id="kpi-wd-sub"></div>
+  <div class="qp-body">
+    <div class="qp-col qp-total">
+      <div class="qp-label">전체 (확정+요청)</div>
+      <div class="qp-big" id="kpi-total">0<span>건</span></div>
+      <div class="qp-sub" id="kpi-sub"></div>
+    </div>
+    <div class="qp-col" id="qp-weekday"></div>
+    <div class="qp-col" id="qp-saturday"></div>
+    <div class="qp-col" id="qp-sunday"></div>
   </div>
-  <div class="kpi-card orange">
-    <div class="kpi-label" id="kpi-sat-label">토요일 잔여</div>
-    <div class="kpi-value" id="kpi-sat">0 <span>회</span></div>
-    <div class="kpi-sub" id="kpi-sat-sub"></div>
-  </div>
-  <div class="kpi-card purple">
-    <div class="kpi-label" id="kpi-sun-label">일요일/공휴일 잔여</div>
-    <div class="kpi-value" id="kpi-sun">0 <span>회</span></div>
-    <div class="kpi-sub" id="kpi-sun-sub"></div>
-  </div>
-</div>
-
-<div class="quota-card">
-  <div class="quota-title"><span class="dot" style="background:#27ae60"></span>월 한도 사용 현황 <span class="note">· 1칸 = 1회 · 진한 칸 = 확정 · 빗금 = 요청 · 빈 칸 = 잔여 · 빨간 점선 = 한도 초과</span></div>
-  <div id="quota-items"></div>
 </div>
 
 <div class="section-title" id="cal-section-title"></div>
@@ -596,33 +606,24 @@ function renderKPI() {
   const c = counts();
   const totalUsed = c.weekday.used + c.saturday.used + c.sunday.used;
   const totalPend = c.weekday.pend + c.saturday.pend + c.sunday.pend;
-  document.getElementById('kpi-total').innerHTML = `${totalUsed + totalPend} <span>건</span>`;
+  document.getElementById('kpi-total').innerHTML = `${totalUsed + totalPend}<span>건</span>`;
   document.getElementById('kpi-sub').textContent = `확정 ${totalUsed}건 · 요청 ${totalPend}건`;
-  const set = (k, t, label) => {
-    const x = c[t]; const sum = x.used + x.pend; const over = sum - x.limit;
-    document.getElementById(`kpi-${k}-label`).textContent = `${label} 잔여 (한도 ${x.limit})`;
-    document.getElementById(`kpi-${k}`).innerHTML = `${Math.max(0, x.limit - sum)} <span>회</span>`;
-    const sub = document.getElementById(`kpi-${k}-sub`);
-    sub.textContent = `확정 ${x.used} · 요청 ${x.pend}` + (over > 0 ? ` · ${over}건 초과` : '');
-    sub.style.color = over > 0 ? '#c0392b' : '';
-  };
-  set('wd', 'weekday', '주중'); set('sat', 'saturday', '토요일'); set('sun', 'sunday', '일요일/공휴일');
-  const fills = { weekday: 'fill-weekday', saturday: 'fill-saturday', sunday: 'fill-sunday' };
-  // 한도 1회 = 칸 1개 (주중 7칸 / 토 2칸 / 일·공휴 3칸) — 길이가 한도에 비례
-  document.getElementById('quota-items').innerHTML = ['weekday', 'saturday', 'sunday'].map(t => {
-    const x = c[t]; const sum = x.used + x.pend; const over = sum > x.limit;
+  const NAMES = { weekday: '주중', saturday: '토요일', sunday: '일요일·공휴일' };
+  // 한도 1회 = 1칸 (주중 7 / 토 2 / 일·공휴 3) — 칸 수가 곧 한도
+  for (const t of ['weekday', 'saturday', 'sunday']) {
+    const x = c[t]; const sum = x.used + x.pend; const over = sum - x.limit; const remain = Math.max(0, x.limit - sum);
     let cells = '';
     for (let i = 0; i < Math.max(x.limit, sum); i++) {
       const kind = i < x.used ? `used ${t}` : i < sum ? 'pend' : 'empty';
       const tip = i < x.used ? '확정' : i < sum ? '요청' : '잔여';
-      cells += `<span class="slot ${kind}${i >= x.limit ? ' over' : ''}${i === x.limit ? ' gap' : ''}" title="${i + 1}번째 · ${i >= x.limit ? '한도 초과 · ' : ''}${tip}"></span>`;
+      cells += `<span class="slot ${kind}${i >= x.limit ? ' over' : ''}${i === x.limit ? ' gap' : ''}" title="${i + 1}회차 · ${i >= x.limit ? '한도 초과 · ' : ''}${tip}"></span>`;
     }
-    return `<div class="quota-item">
-      <div class="quota-item-label">${t === 'sunday' ? '일/공휴' : TYPE_KR[t]}</div>
+    document.getElementById(`qp-${t}`).innerHTML = `
+      <div class="qp-label"><span class="dot dot-${t}"></span>${NAMES[t]} <span class="qp-limit">한도 ${x.limit}회</span></div>
+      <div class="qp-big${remain === 0 ? ' zero' : ''}">${remain}<span>회 남음</span></div>
       <div class="slots">${cells}</div>
-      <div class="quota-nums${over ? ' over' : ''}">확정 <span class="used">${x.used}</span> · 요청 <span class="pend">${x.pend}</span> / 한도 ${x.limit}${over ? ` <span class="overtxt">${sum - x.limit} 초과</span>` : ''}</div>
-    </div>`;
-  }).join('');
+      <div class="qp-sub">확정 <b>${x.used}</b> · 요청 <b class="pend">${x.pend}</b>${over > 0 ? ` · <b class="overtxt">${over}건 초과</b>` : ''}</div>`;
+  }
 }
 
 function renderPending() {
