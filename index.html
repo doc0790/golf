@@ -11,22 +11,28 @@
 // ════════════════════════════════════════════════════════════
 const CONFIG = {
   COURSE_NAME: '아도니스CC',
-  PAGE_URL:    'https://YOUR_GITHUB_ID.github.io/golf/',
+  PAGE_URL:    'https://doc0790.github.io/golf/',
 
   // Supabase (Project Settings > API)
-  SUPABASE_URL: 'YOUR_SUPABASE_URL',          // 예: https://abcd1234.supabase.co
-  SUPABASE_KEY: 'YOUR_SUPABASE_ANON_KEY',     // anon public key
+  SUPABASE_URL: 'https://vybcbbakqszldowxeoje.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_tZKw2P8Y9CCcyvCOe9RwaQ_cTvRUoR_',     // Publishable key (sb_publishable_…) 또는 anon key
 
   // EmailJS (Account > Public Key / Email Services / Email Templates)
-  EMAILJS_PUBLIC_KEY:  'YOUR_EMAILJS_PUBLIC_KEY',
-  EMAILJS_SERVICE_ID:  'YOUR_EMAILJS_SERVICE_ID',
-  EMAILJS_TEMPLATE_ID: 'YOUR_EMAILJS_TEMPLATE_ID',
+  EMAILJS_PUBLIC_KEY:  'fxv1QzHUyFsehZ15W',
+  EMAILJS_SERVICE_ID:  'service_j1nnhjr',
+  EMAILJS_TEMPLATE_ID: 'template_ql24gqr',
 
-  // 메일 수신자
+  // 메일 (보내는 사람 = EmailJS에 연결한 kmon@hecto.co.kr 계정)
+  FROM_NAME:   '함기식',
+  FROM_EMAIL:  'kmon@hecto.co.kr',      // 회신 주소(Reply-To)
   CEO_NAME:    '유성완',                 // 대표님 (확정/불가 알림 수신)
+  CEO_TITLE:   '대표님',
   CEO_EMAIL:   'ysw0607@hecto.co.kr',
   ADMIN_NAME:  '함기식',                 // 예약 담당 (희망일정 알림 수신)
   ADMIN_EMAIL: 'kmon@hecto.co.kr',
+
+  // 골프장 예약 사이트 (메일의 '예약하러 가기' 링크)
+  BOOKING_URL: 'https://www.adoniscc.co.kr/golf',
 
   // 관리자 화면 주소: PAGE_URL?admin=<ADMIN_KEY>
   ADMIN_KEY: 'hecto-golf',
@@ -96,7 +102,11 @@ const CONFIG = {
   .fill-weekday  { background: #2980b9; } .fill-saturday { background: #16a085; } .fill-sunday { background: #e74c3c; }
   .fill-pending  { background: repeating-linear-gradient(45deg,#f5c26b,#f5c26b 4px,#fbe2b0 4px,#fbe2b0 8px); }
   .quota-nums { font-size: 11px; font-weight: 600; white-space: nowrap; min-width: 92px; text-align: right; }
-  .quota-nums .used { color: #1a2535; } .quota-nums .total { color: #b0bec5; } .quota-nums .pend { color: #d68910; }
+  .quota-nums { color: #9aabb8; font-weight: 500; min-width: 190px; }
+  .quota-nums .used { color: #1a2535; font-weight: 700; } .quota-nums .pend { color: #d68910; font-weight: 700; }
+  .quota-nums.over .overtxt { color: #c0392b; font-weight: 700; }
+  .limit-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #c0392b; border-radius: 1px; }
+  .quota-bar-wrap { overflow: visible; }
 
   .section-title { font-size: 12px; font-weight: 700; color: #4a6070; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
   .section-title::after { content: ''; flex: 1; height: 1px; background: #e4eaf2; }
@@ -166,6 +176,8 @@ const CONFIG = {
   .b-warn    { background: #fdecea; color: #c0392b; } .b-warn:hover { background: #c0392b; color: #fff; }
   .b-plain   { background: #f0f4f8; color: #4a6070; }
   .b-blue    { background: #d5e8f7; color: #1a6fa8; } .b-blue:hover { background: #1a6fa8; color: #fff; }
+  .b-link { display: block; text-align: center; background: #eaf7f0; color: #1e8449; border-radius: 9px; padding: 10px; font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 12px; }
+  .b-link:hover { background: #d4efe0; }
   .modal-btns button:disabled { opacity: .5; cursor: default; }
 
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: #1a2535; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13px; opacity: 0; transition: all .25s; z-index: 2000; pointer-events: none; max-width: calc(100% - 32px); }
@@ -214,7 +226,7 @@ const CONFIG = {
 
 <div class="kpi-row">
   <div class="kpi-card green">
-    <div class="kpi-label">확정 예약</div>
+    <div class="kpi-label">이번 달 예약 (확정+요청)</div>
     <div class="kpi-value" id="kpi-total">0 <span>건</span></div>
     <div class="kpi-sub" id="kpi-sub"></div>
   </div>
@@ -236,7 +248,7 @@ const CONFIG = {
 </div>
 
 <div class="quota-card">
-  <div class="quota-title"><span class="dot" style="background:#27ae60"></span>월 한도 사용 현황 <span class="note">· 진한 색 = 확정, 빗금 = 희망(대기)</span></div>
+  <div class="quota-title"><span class="dot" style="background:#27ae60"></span>월 한도 사용 현황 <span class="note">· 진한 색 = 확정, 빗금 = 요청(희망), 빨간 선 = 한도</span></div>
   <div id="quota-items"></div>
 </div>
 
@@ -259,7 +271,7 @@ const CONFIG = {
 <div class="section-title">예약 상세 목록</div>
 <div class="list-wrap">
   <table class="list-table">
-    <thead><tr><th>#</th><th>날짜</th><th>요일</th><th>구분</th><th>상태</th><th>티타임 / 희망</th><th>예약자</th><th>메모</th></tr></thead>
+    <thead><tr><th>#</th><th>날짜</th><th>요일</th><th>구분</th><th>상태</th><th>티타임 / 희망</th><th>예약 오픈</th><th>예약자</th><th>메모</th></tr></thead>
     <tbody id="list-body"></tbody>
   </table>
 </div>
@@ -286,11 +298,11 @@ if (EMAIL_ON) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
 // 대한민국 공휴일 (필요 시 연도 추가)
 const HOLIDAYS = {
-  '2026-9':  {24:'추석연휴', 25:'추석', 26:'추석연휴'},
+  '2026-9':  {24:'추석연휴', 25:'추석', 26:'추석연휴', 27:'추석연휴'},
   '2026-10': {3:'개천절', 5:'대체공휴일', 9:'한글날'},
   '2026-12': {25:'크리스마스'},
   '2027-1':  {1:'신정'},
-  '2027-2':  {6:'설연휴', 7:'설날', 8:'설연휴', 9:'대체공휴일'},
+  '2027-2':  {6:'설연휴', 7:'설연휴', 8:'설날', 9:'대체공휴일'},
   '2027-3':  {1:'삼일절'},
   '2027-5':  {5:'어린이날', 13:'부처님오신날'},
   '2027-6':  {6:'현충일'},
@@ -319,7 +331,9 @@ let rows = [];
 
 // ── 데이터 계층 (Supabase / 데모) ───────────────────────
 const API = `${CONFIG.SUPABASE_URL}/rest/v1/reservations`;
-const HDR = { apikey: CONFIG.SUPABASE_KEY, Authorization: `Bearer ${CONFIG.SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' };
+// 새 키(sb_publishable_…)는 apikey 헤더만, 예전 anon 키(eyJ…)는 Authorization도 함께
+const HDR = { apikey: CONFIG.SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation',
+  ...(CONFIG.SUPABASE_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${CONFIG.SUPABASE_KEY}` } : {}) };
 
 const supaDB = {
   async list(y, m) {
@@ -367,18 +381,23 @@ const demoDB = (() => {
 const DB = DEMO ? demoDB : supaDB;
 
 // ── 메일 ─────────────────────────────────────────────────
-// to: 'ceo' | 'admin'
+// 메일 규칙
+//   'admin' : 대표님이 등록/수정/철회/취소요청 → 담당자에게만
+//   'all'   : 담당자가 확정/변경/불가/취소 처리 → 대표님 + 담당자 모두
 async function notify(to, subject, lines) {
-  const toName  = to === 'ceo' ? CONFIG.CEO_NAME : CONFIG.ADMIN_NAME;
-  const toEmail = to === 'ceo' ? CONFIG.CEO_EMAIL : CONFIG.ADMIN_EMAIL;
+  const ceo = `${CONFIG.CEO_NAME} ${CONFIG.CEO_TITLE}`;
+  const greeting = to === 'all' ? `${ceo}, ${CONFIG.ADMIN_NAME}님` : `${CONFIG.ADMIN_NAME}님`;
+  const toEmail  = to === 'all' ? `${CONFIG.CEO_EMAIL}, ${CONFIG.ADMIN_EMAIL}` : CONFIG.ADMIN_EMAIL;
   const link = to === 'admin' ? `${CONFIG.PAGE_URL}?admin=${CONFIG.ADMIN_KEY}` : CONFIG.PAGE_URL;
-  const message = lines.filter(Boolean).join('\n');
-  const label = to === 'ceo' ? '대표님' : '담당자';
-  if (!EMAIL_ON) { console.log('[메일 미설정]', toEmail, subject, '\n' + message); toast(`(메일 미설정) ${label}께 알림 생략`); return; }
+  const btn = `<a href="${esc(CONFIG.BOOKING_URL)}" style="display:inline-block;background:#27ae60;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:bold">⛳ 예약하러 가기</a>`;
+  const message = lines.filter(x => x !== null && x !== undefined && x !== false)
+    .map(l => l === '__BOOKING__' ? btn : esc(l)).join('<br>');
+  const label = to === 'all' ? `${CONFIG.CEO_TITLE}·담당자 모두` : '담당자';
+  if (!EMAIL_ON) { console.log('[메일 미설정]', toEmail, subject, '\n' + message.replace(/<br>/g, '\n')); toast(`(메일 미설정) ${label}께 알림 생략`); return; }
   try {
     await emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, {
-      to_email: toEmail, to_name: toName, subject: `[골프예약] ${subject}`, message, page_url: link,
-      from_name: `${CONFIG.COURSE_NAME} 골프예약`,
+      to_email: toEmail, greeting, subject: `[골프예약] ${subject}`, message, page_url: link,
+      from_name: CONFIG.FROM_NAME, reply_to: CONFIG.FROM_EMAIL,
     });
     toast(`✉ ${label}께 알림메일 발송`);
   } catch (e) { console.warn('메일 발송 실패', e); toast('⚠ 메일 발송 실패 (예약 저장은 완료)'); }
@@ -393,6 +412,35 @@ function describe(r) {
     r.name     ? `예약자: ${r.name}` : null,
     r.req_note ? `요청 메모: ${r.req_note}` : null,
     r.admin_note ? `담당자 메모: ${r.admin_note}` : null,
+  ];
+}
+
+// ── 골프장 예약 오픈일 ───────────────────────────────────
+// 주중(평일): 이용일 3주 전 09:00                 예) 11/2(월) → 10/12(월)
+// 토·일요일 : 이용일 3주 전 주의 목요일 09:00      예) 10/31(토)·11/1(일) → 10/8(목)
+// 평일 공휴일: 아도니스 별도 공지 → 관리자 화면에서 오픈일 직접 입력 (open_date)
+function isWeekdayHoliday(y, m, d, type) { const w = getDow(y, m, d); return type !== 'weekday' && w >= 1 && w <= 5; }
+function openInfo(y, m, d, type, manual) {
+  let o = null;
+  if (manual) { const [a, b, c] = manual.split('-').map(Number); o = new Date(a, b - 1, c); }
+  else if (!isWeekdayHoliday(y, m, d, type)) {
+    o = new Date(y, m - 1, d - 21);
+    if (type !== 'weekday') o.setDate(o.getDate() - ((o.getDay() - 4 + 7) % 7));
+  }
+  if (!o) return { date: null, label: '아도니스 공지 확인 필요', opened: false, unknown: true };
+  const openAt = new Date(o.getFullYear(), o.getMonth(), o.getDate(), 9, 0);
+  return { date: o, label: `${o.getMonth() + 1}/${o.getDate()}(${DAY_KR[o.getDay()]}) 09:00`, opened: new Date() >= openAt, manual: !!manual };
+}
+const rowOpen = r => { const { year, month } = MONTHS[curIdx]; return openInfo(year, month, r.day, r.type, r.open_date); };
+function openLines(r) {
+  const oi = rowOpen(r);
+  return [
+    '',
+    oi.unknown ? '예약 오픈: 평일 공휴일 — 아도니스 별도 공지 확인 필요'
+      : oi.opened ? `예약 오픈: ${oi.label} — 이미 오픈되어 지금 예약 가능합니다.`
+      : `예약 오픈: ${oi.label} (전날 저녁에 알림메일 발송)`,
+    '',
+    '__BOOKING__',
   ];
 }
 
@@ -503,10 +551,16 @@ function renderCalendar() {
   for (let i = 0; i < rem; i++) grid.insertAdjacentHTML('beforeend', '<div class="cal-cell empty"></div>');
 }
 
+function openCell(r) {
+  if (r.status !== 'requested') return '<span class="muted">-</span>';
+  const oi = rowOpen(r);
+  if (oi.unknown) return '<span style="color:#c0392b;font-weight:700">공지 확인</span>';
+  return oi.opened ? `<a href="${esc(CONFIG.BOOKING_URL)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#1e8449;font-weight:700">오픈됨 · 예약하기</a>` : `<span style="color:#d68910;font-weight:700">${oi.label}</span>`;
+}
 function renderList() {
   const { year, month } = MONTHS[curIdx];
   const tb = document.getElementById('list-body');
-  if (!rows.length) { tb.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:#9aabb8;cursor:default">${month}월 예약 내역이 없습니다</td></tr>`; return; }
+  if (!rows.length) { tb.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:#9aabb8;cursor:default">${month}월 예약 내역이 없습니다</td></tr>`; return; }
   tb.innerHTML = [...rows].sort((a, b) => a.day - b.day).map((r, i) => {
     const dow = getDow(year, month, r.day);
     const dc = dow === 0 ? '#e74c3c' : dow === 6 ? '#2980b9' : '#3a4f60';
@@ -519,6 +573,7 @@ function renderList() {
       <td><span class="tag type-${r.type}">${TYPE_KR[r.type]}</span></td>
       <td><span class="tag st-${r.status}">${STATUS_SHORT[r.status]}</span></td>
       <td>${timeCell}</td>
+      <td>${openCell(r)}</td>
       <td>${esc(r.name || '-')}</td>
       <td style="max-width:220px">${memo || '<span class="muted">-</span>'}</td>
     </tr>`;
@@ -529,22 +584,27 @@ function renderKPI() {
   const c = counts();
   const totalUsed = c.weekday.used + c.saturday.used + c.sunday.used;
   const totalPend = c.weekday.pend + c.saturday.pend + c.sunday.pend;
-  document.getElementById('kpi-total').innerHTML = `${totalUsed} <span>건</span>`;
-  document.getElementById('kpi-sub').textContent = `주중 ${c.weekday.used} · 토 ${c.saturday.used} · 일/공휴 ${c.sunday.used}` + (totalPend ? ` · 대기 ${totalPend}` : '');
+  document.getElementById('kpi-total').innerHTML = `${totalUsed + totalPend} <span>건</span>`;
+  document.getElementById('kpi-sub').textContent = `확정 ${totalUsed}건 · 요청 ${totalPend}건`;
   const set = (k, t, label) => {
-    const x = c[t];
+    const x = c[t]; const sum = x.used + x.pend; const over = sum - x.limit;
     document.getElementById(`kpi-${k}-label`).textContent = `${label} 잔여 (한도 ${x.limit})`;
-    document.getElementById(`kpi-${k}`).innerHTML = `${Math.max(0, x.limit - x.used)} <span>회</span>`;
-    document.getElementById(`kpi-${k}-sub`).textContent = `확정 ${x.used}회` + (x.pend ? ` · 희망 대기 ${x.pend}건` : '') + (x.used > x.limit ? ' · 한도 초과' : '');
+    document.getElementById(`kpi-${k}`).innerHTML = `${Math.max(0, x.limit - sum)} <span>회</span>`;
+    const sub = document.getElementById(`kpi-${k}-sub`);
+    sub.textContent = `확정 ${x.used} · 요청 ${x.pend}` + (over > 0 ? ` · ${over}건 초과` : '');
+    sub.style.color = over > 0 ? '#c0392b' : '';
   };
   set('wd', 'weekday', '주중'); set('sat', 'saturday', '토요일'); set('sun', 'sunday', '일요일/공휴일');
   const fills = { weekday: 'fill-weekday', saturday: 'fill-saturday', sunday: 'fill-sunday' };
   document.getElementById('quota-items').innerHTML = ['weekday', 'saturday', 'sunday'].map(t => {
-    const x = c[t]; const base = Math.max(x.limit, x.used + x.pend);
+    const x = c[t]; const sum = x.used + x.pend; const base = Math.max(x.limit, sum); const over = sum > x.limit;
     return `<div class="quota-item">
       <div class="quota-item-label">${t === 'sunday' ? '일/공휴' : TYPE_KR[t]}</div>
-      <div class="quota-bar-wrap"><div class="quota-bar-fill ${fills[t]}" style="width:${x.used / base * 100}%"></div><div class="quota-bar-fill fill-pending" style="width:${x.pend / base * 100}%"></div></div>
-      <div class="quota-nums"><span class="used">${x.used}</span><span class="total"> / ${x.limit}회</span>${x.pend ? ` <span class="pend">+${x.pend}</span>` : ''}</div>
+      <div class="quota-bar-wrap" style="position:relative">
+        <div class="quota-bar-fill ${fills[t]}" style="width:${x.used / base * 100}%"></div><div class="quota-bar-fill fill-pending" style="width:${x.pend / base * 100}%"></div>
+        ${over ? `<div class="limit-mark" style="left:${x.limit / base * 100}%" title="한도 ${x.limit}회"></div>` : ''}
+      </div>
+      <div class="quota-nums${over ? ' over' : ''}">한도 <span class="used">${x.limit}</span> 중 확정 <span class="used">${x.used}</span> · 요청 <span class="pend">${x.pend}</span>${over ? ` <span class="overtxt">(${sum - x.limit} 초과)</span>` : ''}</div>
     </div>`;
   }).join('');
 }
@@ -576,11 +636,23 @@ const area = (id, label, v, ph, ro) => `<label for="${id}">${label}</label><text
 const chips = (target, list) => `<div class="chips">${list.map(x => `<button type="button" class="chip" onclick="document.getElementById('${target}').value='${x}'">${x}</button>`).join('')}</div>`;
 const dateLine = day => { const { year, month } = MONTHS[curIdx]; return `${year}년 ${month}월 ${day}일 (${DAY_KR[getDow(year, month, day)]})`; };
 
-function quotaWarn(type, extra) {
+// 신규 등록 시 한도 확인 (확정 + 요청 합산)
+function quotaFull(type) { const x = counts()[type]; return x.used + x.pend >= x.limit; }
+function overWarn(type) {
   const x = counts()[type];
-  const n = x.used + (extra === 'withPending' ? x.pend : 0);
-  if (n >= x.limit) return `<div class="warn-box">⚠ 이번 달 ${TYPE_KR[type]} 한도 ${x.limit}회 중 확정 ${x.used}회${x.pend ? ` · 대기 ${x.pend}건` : ''} — 한도를 초과합니다.</div>`;
+  if (x.used + x.pend > x.limit) return `<div class="warn-box">⚠ ${TYPE_KR[type]} 한도 ${x.limit}회 중 확정 ${x.used} · 요청 ${x.pend}건 — ${x.used + x.pend - x.limit}건 초과 상태입니다.</div>`;
   return '';
+}
+function quotaWarn(type) {
+  const x = counts()[type];
+  if (x.used + x.pend >= x.limit) return `<div class="warn-box">⚠ 이번 달 ${TYPE_KR[type]} 한도 ${x.limit}회 중 확정 ${x.used} · 요청 ${x.pend}건 — 추가하면 한도를 초과합니다.</div>`;
+  return '';
+}
+function openBox(day, type, manual) {
+  const { year, month } = MONTHS[curIdx];
+  const oi = openInfo(year, month, day, type, manual);
+  if (oi.unknown) return `<div class="warn-box">평일 공휴일은 아도니스 별도 공지로 예약 오픈일이 정해집니다.${IS_ADMIN ? ' 공지 확인 후 아래에 오픈일을 입력하면 전날 저녁 알림이 발송됩니다.' : ''}</div>`;
+  return `<div class="info-box">골프장 예약 오픈: <b>${oi.label}</b>${oi.manual ? ' (공지 기준)' : ''}${oi.opened ? ' <span style="color:#1e8449">· 오픈됨</span>' : ' · 전날 저녁 담당자 알림'}</div>`;
 }
 
 // 날짜 클릭 → 신규
@@ -589,7 +661,7 @@ function openNew(day) {
   const t = autoType(year, month, day);
   if (IS_ADMIN) {
     openModal(`<h3>${month}월 ${day}일 확정 예약 등록</h3>
-      <div class="status-line">골프장 예약이 완료된 건을 직접 등록합니다. 저장 시 대표님께 확정 메일이 발송됩니다.</div>
+      <div class="status-line">골프장 예약이 완료된 건을 직접 등록합니다. 저장 시 대표님과 담당자 모두에게 확정 메일이 발송됩니다.</div>
       ${quotaWarn(t)}
       ${field('f-date', '날짜', dateLine(day), '', true)}
       ${field('f-time', '티타임', '', '예) 08시00분')}
@@ -600,9 +672,10 @@ function openNew(day) {
       <div class="modal-btns"><button class="b-plain" onclick="closeModal()">취소</button><button class="b-primary" id="b-go" onclick="adminCreate(${day})">확정 등록</button></div>`);
   } else {
     openModal(`<h3>${month}월 ${day}일 희망일정 등록</h3>
-      <div class="status-line">등록하시면 담당자(${esc(CONFIG.ADMIN_NAME)})에게 알림메일이 발송되고, 예약이 확정되면 메일로 안내드립니다.</div>
-      ${quotaWarn(t, 'withPending')}
+      <div class="status-line">등록하시면 담당자(${esc(CONFIG.ADMIN_NAME)})에게 알림메일이 발송되고, 예약이 확정되면 대표님께 메일로 안내드립니다.</div>
+      ${quotaWarn(t)}
       ${field('f-date', '날짜', dateLine(day), '', true)}
+      ${openBox(day, t)}
       ${field('f-reqtime', '희망 시간대', '', '예) 오전 8시 전후')}
       ${chips('f-reqtime', ['오전 이른 시간', '오전', '점심 전후', '오후', '시간 무관'])}
       ${field('f-name', '예약자', CONFIG.CEO_NAME, '')}
@@ -622,12 +695,18 @@ function openDetail(id) {
 
   if (IS_ADMIN) {
     if (r.status === 'requested') {
-      body = `${reqInfo}${quotaWarn(r.type)}
+      const { year: yy, month: mm } = MONTHS[curIdx];
+      const showOpenField = isWeekdayHoliday(yy, mm, r.day, r.type) || r.open_date;
+      body = `${reqInfo}${openBox(r.day, r.type, r.open_date)}
+        ${showOpenField ? `<label for="f-open">예약 오픈일 (아도니스 공지 기준, 09:00)</label>
+          <div style="display:flex;gap:6px"><input type="date" id="f-open" value="${esc(r.open_date || '')}" style="flex:1"><button class="chip" style="margin-bottom:12px;padding:0 14px" onclick="adminSetOpen(${id})">오픈일 저장</button></div>` : ''}
+        ${overWarn(r.type)}
         ${field('f-time', '확정 티타임', r.time || '', '예) 08시00분')}
         ${chips('f-time', ['07시00분', '08시00분', '12시00분'])}
         ${field('f-name', '예약자', r.name || CONFIG.CEO_NAME)}
         ${typeSelect(r.type)}
         ${area('f-anote', '담당자 메모 / 불가 사유', r.admin_note || '', '확정 시 참고사항, 불가 시 사유')}`;
+      body += `<a href="${esc(CONFIG.BOOKING_URL)}" target="_blank" rel="noopener" class="b-link">⛳ ${esc(CONFIG.COURSE_NAME)} 예약하러 가기 ↗</a>`;
       btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
     } else if (r.status === 'confirmed') {
       body = `${reqInfo}
@@ -682,12 +761,13 @@ const subjDate = day => { const { year, month } = MONTHS[curIdx]; return dateStr
 function ceoCreate(day) {
   const { year, month } = MONTHS[curIdx];
   const d = { year, month, day, type: val('f-type') || $('f-type').value, status: 'requested', req_time: val('f-reqtime'), req_note: val('f-rnote'), name: val('f-name') || CONFIG.CEO_NAME };
-  run(async () => { const r = await DB.insert(d); notify('admin', `희망일정 등록 ${subjDate(day)} ${d.req_time}`, ['대표님이 희망일정을 등록했습니다.', '', ...describe(r || d)]); });
+  if (quotaFull(d.type) && !confirm(`이번 달 ${TYPE_KR[d.type]} 한도(${CONFIG.LIMITS[d.type]}회)가 확정+요청으로 이미 찼습니다.\n그래도 등록하시겠습니까?`)) return;
+  run(async () => { const r = await DB.insert(d); notify('admin', `희망일정 등록 ${subjDate(day)} ${d.req_time}`, ['대표님이 희망일정을 등록했습니다.', '', ...describe(r || d), ...openLines(r || d)]); });
 }
 function ceoEdit(id) {
   const r = rows.find(x => x.id === id);
   const d = { req_time: val('f-reqtime'), req_note: val('f-rnote'), name: val('f-name') };
-  run(async () => { await DB.update(id, d); notify('admin', `희망일정 수정 ${subjDate(r.day)}`, ['대표님이 희망일정을 수정했습니다.', '', ...describe({ ...r, ...d })]); });
+  run(async () => { await DB.update(id, d); notify('admin', `희망일정 수정 ${subjDate(r.day)}`, ['대표님이 희망일정을 수정했습니다.', '', ...describe({ ...r, ...d }), ...openLines(r)]); });
 }
 function ceoWithdraw(id) {
   const r = rows.find(x => x.id === id);
@@ -707,7 +787,8 @@ function adminCreate(day) {
   const time = val('f-time'), name = val('f-name');
   if (!time || !name) { alert('티타임과 예약자를 입력해 주세요.'); return; }
   const d = { year, month, day, type: $('f-type').value, status: 'confirmed', time, name, admin_note: val('f-anote') };
-  run(async () => { const r = await DB.insert(d); notify('ceo', `예약 확정 ${subjDate(day)} ${time}`, ['골프장 예약이 확정되었습니다.', '', ...describe(r || d)]); });
+  if (quotaFull(d.type) && !confirm(`${TYPE_KR[d.type]} 한도(${CONFIG.LIMITS[d.type]}회)를 초과합니다. 그래도 등록할까요?`)) return;
+  run(async () => { const r = await DB.insert(d); notify('all', `예약 확정 ${subjDate(day)} ${time}`, ['골프장 예약이 확정되었습니다.', '', ...describe(r || d)]); });
 }
 function adminConfirm(id) {
   const r = rows.find(x => x.id === id);
@@ -716,31 +797,35 @@ function adminConfirm(id) {
   const d = { status: 'confirmed', time, name, type: $('f-type').value, admin_note: val('f-anote') };
   const x = counts()[d.type];
   if (x.used >= x.limit && !confirm(`${TYPE_KR[d.type]} 한도(${x.limit}회)를 초과합니다. 그래도 확정할까요?`)) return;
-  run(async () => { await DB.update(id, d); notify('ceo', `예약 확정 ${subjDate(r.day)} ${time}`, ['요청하신 희망일정의 골프장 예약이 확정되었습니다.', '', ...describe({ ...r, ...d })]); });
+  run(async () => { await DB.update(id, d); notify('all', `예약 확정 ${subjDate(r.day)} ${time}`, ['요청하신 희망일정의 골프장 예약이 확정되었습니다.', '', ...describe({ ...r, ...d })]); });
 }
 function adminDecline(id) {
   const r = rows.find(x => x.id === id);
   const reason = val('f-anote');
   if (!reason) { alert('담당자 메모 칸에 불가 사유를 입력해 주세요.'); $('f-anote').focus(); return; }
-  run(async () => { await DB.update(id, { status: 'declined', admin_note: reason }); notify('ceo', `예약 불가 ${subjDate(r.day)}`, ['요청하신 일정은 예약이 어렵습니다.', '', ...describe({ ...r, admin_note: reason, time: null })]); });
+  run(async () => { await DB.update(id, { status: 'declined', admin_note: reason }); notify('all', `예약 불가 ${subjDate(r.day)}`, ['요청하신 일정은 예약이 어렵습니다.', '', ...describe({ ...r, admin_note: reason, time: null })]); });
 }
 function adminEdit(id) {
   const r = rows.find(x => x.id === id);
   const d = { time: val('f-time'), name: val('f-name'), type: $('f-type').value, admin_note: val('f-anote') };
   if (!d.time || !d.name) { alert('티타임과 예약자를 입력해 주세요.'); return; }
   const changed = d.time !== (r.time || '') || d.name !== (r.name || '');
-  run(async () => { await DB.update(id, d); if (changed) notify('ceo', `예약 변경 ${subjDate(r.day)} ${d.time}`, ['확정 예약 내용이 변경되었습니다.', `(변경 전: ${r.time || '-'} / ${r.name || '-'})`, '', ...describe({ ...r, ...d })]); else toast('저장되었습니다'); });
+  run(async () => { await DB.update(id, d); if (changed) notify('all', `예약 변경 ${subjDate(r.day)} ${d.time}`, ['확정 예약 내용이 변경되었습니다.', `(변경 전: ${r.time || '-'} / ${r.name || '-'})`, '', ...describe({ ...r, ...d })]); else toast('저장되었습니다'); });
 }
 function adminRemove(id, label) {
   const r = rows.find(x => x.id === id);
-  if (!confirm(`${label} 처리하고 목록에서 삭제할까요? (대표님께 취소 메일 발송)`)) return;
-  run(async () => { await DB.remove(id); notify('ceo', `예약 취소 ${subjDate(r.day)} ${r.time || ''}`, ['아래 예약이 취소 처리되었습니다.', '', ...describe(r)]); });
+  if (!confirm(`${label} 처리하고 목록에서 삭제할까요? (대표님·담당자에게 취소 메일 발송)`)) return;
+  run(async () => { await DB.remove(id); notify('all', `예약 취소 ${subjDate(r.day)} ${r.time || ''}`, ['아래 예약이 취소 처리되었습니다.', '', ...describe(r)]); });
 }
 function adminRejectCancel(id) {
   const r = rows.find(x => x.id === id);
   const note = val('f-anote');
   if (!note) { alert('담당자 메모에 사유를 입력해 주세요. (예: 취소 기한 경과)'); return; }
-  run(async () => { await DB.update(id, { status: 'confirmed', admin_note: note }); notify('ceo', `취소 불가 안내 ${subjDate(r.day)} ${r.time || ''}`, ['요청하신 예약 취소가 어려워 예약이 유지됩니다.', '', ...describe({ ...r, admin_note: note })]); });
+  run(async () => { await DB.update(id, { status: 'confirmed', admin_note: note }); notify('all', `취소 불가 안내 ${subjDate(r.day)} ${r.time || ''}`, ['요청하신 예약 취소가 어려워 예약이 유지됩니다.', '', ...describe({ ...r, admin_note: note })]); });
+}
+function adminSetOpen(id) {
+  const v = val('f-open') || null;
+  run(async () => { await DB.update(id, { open_date: v }); toast(v ? '오픈일 저장 — 전날 저녁 알림 대상' : '오픈일 해제'); });
 }
 function silentRemove(id) {
   if (!confirm('목록에서 삭제할까요?')) return;
