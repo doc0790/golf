@@ -94,7 +94,16 @@ const CONFIG = {
   .quota-title { font-size: 12px; font-weight: 600; color: #4a6070; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .quota-title .note { font-weight: 400; color: #9aabb8; font-size: 11px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-  .quota-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .quota-item { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .slots { display: flex; gap: 4px; width: 248px; flex-shrink: 0; }
+  .slot { width: 30px; height: 16px; border-radius: 4px; border: 1.5px solid #dfe6ee; background: #fff; flex-shrink: 0; }
+  .slot.used.weekday  { background: #2980b9; border-color: #2980b9; }
+  .slot.used.saturday { background: #16a085; border-color: #16a085; }
+  .slot.used.sunday   { background: #e74c3c; border-color: #e74c3c; }
+  .slot.pend { border-color: #f0b44c; background: repeating-linear-gradient(45deg,#f5c26b,#f5c26b 3px,#fde9c2 3px,#fde9c2 6px); }
+  .slot.over { border: 1.5px dashed #c0392b; background: repeating-linear-gradient(45deg,#f1948a,#f1948a 3px,#fdecea 3px,#fdecea 6px); }
+  .slot.gap  { margin-left: 8px; }
+  .quota-card { max-width: 720px; }
   .quota-item:last-child { margin-bottom: 0; }
   .quota-item-label { width: 44px; font-size: 11px; color: #9aabb8; font-weight: 600; }
   .quota-bar-wrap { flex: 1; background: #f0f4f8; border-radius: 6px; height: 8px; overflow: hidden; display: flex; }
@@ -102,7 +111,7 @@ const CONFIG = {
   .fill-weekday  { background: #2980b9; } .fill-saturday { background: #16a085; } .fill-sunday { background: #e74c3c; }
   .fill-pending  { background: repeating-linear-gradient(45deg,#f5c26b,#f5c26b 4px,#fbe2b0 4px,#fbe2b0 8px); }
   .quota-nums { font-size: 11px; font-weight: 600; white-space: nowrap; min-width: 92px; text-align: right; }
-  .quota-nums { color: #9aabb8; font-weight: 500; min-width: 190px; }
+  .quota-nums { color: #9aabb8; font-weight: 500; text-align: left; }
   .quota-nums .used { color: #1a2535; font-weight: 700; } .quota-nums .pend { color: #d68910; font-weight: 700; }
   .quota-nums.over .overtxt { color: #c0392b; font-weight: 700; }
   .limit-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #c0392b; border-radius: 1px; }
@@ -185,6 +194,9 @@ const CONFIG = {
 
   @media (max-width: 900px) {
     .kpi-row { grid-template-columns: repeat(2,1fr); }
+    .quota-item { display: grid; grid-template-columns: 52px 1fr; row-gap: 6px; }
+    .slots { width: auto; grid-column: 1 / -1; order: 3; }
+    .slot { width: 26px; }
     .month-label { font-size: 17px; min-width: 120px; margin: 0 10px; }
   }
   @media (max-width: 600px) {
@@ -248,7 +260,7 @@ const CONFIG = {
 </div>
 
 <div class="quota-card">
-  <div class="quota-title"><span class="dot" style="background:#27ae60"></span>월 한도 사용 현황 <span class="note">· 진한 색 = 확정, 빗금 = 요청(희망), 빨간 선 = 한도</span></div>
+  <div class="quota-title"><span class="dot" style="background:#27ae60"></span>월 한도 사용 현황 <span class="note">· 1칸 = 1회 · 진한 칸 = 확정 · 빗금 = 요청 · 빈 칸 = 잔여 · 빨간 점선 = 한도 초과</span></div>
   <div id="quota-items"></div>
 </div>
 
@@ -596,15 +608,19 @@ function renderKPI() {
   };
   set('wd', 'weekday', '주중'); set('sat', 'saturday', '토요일'); set('sun', 'sunday', '일요일/공휴일');
   const fills = { weekday: 'fill-weekday', saturday: 'fill-saturday', sunday: 'fill-sunday' };
+  // 한도 1회 = 칸 1개 (주중 7칸 / 토 2칸 / 일·공휴 3칸) — 길이가 한도에 비례
   document.getElementById('quota-items').innerHTML = ['weekday', 'saturday', 'sunday'].map(t => {
-    const x = c[t]; const sum = x.used + x.pend; const base = Math.max(x.limit, sum); const over = sum > x.limit;
+    const x = c[t]; const sum = x.used + x.pend; const over = sum > x.limit;
+    let cells = '';
+    for (let i = 0; i < Math.max(x.limit, sum); i++) {
+      const kind = i < x.used ? `used ${t}` : i < sum ? 'pend' : 'empty';
+      const tip = i < x.used ? '확정' : i < sum ? '요청' : '잔여';
+      cells += `<span class="slot ${kind}${i >= x.limit ? ' over' : ''}${i === x.limit ? ' gap' : ''}" title="${i + 1}번째 · ${i >= x.limit ? '한도 초과 · ' : ''}${tip}"></span>`;
+    }
     return `<div class="quota-item">
       <div class="quota-item-label">${t === 'sunday' ? '일/공휴' : TYPE_KR[t]}</div>
-      <div class="quota-bar-wrap" style="position:relative">
-        <div class="quota-bar-fill ${fills[t]}" style="width:${x.used / base * 100}%"></div><div class="quota-bar-fill fill-pending" style="width:${x.pend / base * 100}%"></div>
-        ${over ? `<div class="limit-mark" style="left:${x.limit / base * 100}%" title="한도 ${x.limit}회"></div>` : ''}
-      </div>
-      <div class="quota-nums${over ? ' over' : ''}">한도 <span class="used">${x.limit}</span> 중 확정 <span class="used">${x.used}</span> · 요청 <span class="pend">${x.pend}</span>${over ? ` <span class="overtxt">(${sum - x.limit} 초과)</span>` : ''}</div>
+      <div class="slots">${cells}</div>
+      <div class="quota-nums${over ? ' over' : ''}">확정 <span class="used">${x.used}</span> · 요청 <span class="pend">${x.pend}</span> / 한도 ${x.limit}${over ? ` <span class="overtxt">${sum - x.limit} 초과</span>` : ''}</div>
     </div>`;
   }).join('');
 }
