@@ -28,7 +28,7 @@ const CONFIG = {
   CEO_NAME:    '유성완',                 // 대표님 (확정/불가 알림 수신)
   CEO_TITLE:   '대표님',
   CEO_EMAIL:   'ysw0607@hecto.co.kr',
-  ADMIN_NAME:  '함기식',                 // 예약 담당 (희망일정 알림 수신)
+  ADMIN_NAME:  '함기식',                 // 예약 담당 (요청일정 알림 수신)
   ADMIN_EMAIL: 'kmon@hecto.co.kr',
 
   // 골프장 예약 사이트 (메일의 '예약하러 가기' 링크)
@@ -278,7 +278,7 @@ const CONFIG = {
 
 <div class="section-title" id="cal-section-title"></div>
 <div class="legend">
-  <span><i style="background:#fff8e6;border:1.5px dashed #f0b44c"></i>희망(예약 대기)</span>
+  <span><i style="background:#fff8e6;border:1.5px dashed #f0b44c"></i>요청(예약 대기)</span>
   <span><i style="background:#eaf7f0;border:1px solid #a9dfbf"></i>확정</span>
   <span><i style="background:#fdecea;border:1.5px dashed #e57373"></i>취소 요청</span>
   <span><i style="background:#f4f5f7;border:1px solid #dde2e8"></i>예약 불가</span>
@@ -295,7 +295,7 @@ const CONFIG = {
 <div class="section-title">예약 상세 목록</div>
 <div class="list-wrap">
   <table class="list-table">
-    <thead><tr><th>#</th><th>날짜</th><th>요일</th><th>구분</th><th>상태</th><th>티타임 / 희망</th><th>예약 오픈</th><th>예약자</th><th>메모</th></tr></thead>
+    <thead><tr><th>#</th><th>날짜</th><th>요일</th><th>구분</th><th>상태</th><th>티타임 / 요청</th><th>예약 오픈</th><th>예약자</th><th>메모</th></tr></thead>
     <tbody id="list-body"></tbody>
   </table>
 </div>
@@ -311,8 +311,8 @@ const CONFIG = {
 // ── 기본 상수 ────────────────────────────────────────────
 const DAY_KR = ['일','월','화','수','목','금','토'];
 const TYPE_KR = { weekday: '주중', saturday: '토요일', sunday: '일/공휴일' };
-const STATUS_KR = { requested: '희망 (예약 대기)', confirmed: '확정', declined: '예약 불가', cancel_req: '취소 요청' };
-const STATUS_SHORT = { requested: '희망', confirmed: '확정', declined: '불가', cancel_req: '취소요청' };
+const STATUS_KR = { requested: '요청 (예약 대기)', confirmed: '확정', declined: '예약 불가', cancel_req: '취소 요청' };
+const STATUS_SHORT = { requested: '요청', confirmed: '확정', declined: '불가', cancel_req: '취소요청' };
 
 const params = new URLSearchParams(location.search);
 const IS_ADMIN = params.get('admin') === CONFIG.ADMIN_KEY;
@@ -432,7 +432,7 @@ function describe(r) {
     `일자: ${year}년 ${month}월 ${r.day}일 (${DAY_KR[getDow(year, month, r.day)]}) · ${TYPE_KR[r.type]}`,
     `골프장: ${CONFIG.COURSE_NAME}`,
     r.time     ? `티타임: ${r.time}` : null,
-    r.req_time ? `희망 시간대: ${r.req_time}` : null,
+    r.req_time ? `요청 시간대: ${r.req_time}` : null,
     r.name     ? `예약자: ${r.name}` : null,
     r.req_note ? `요청 메모: ${r.req_note}` : null,
     r.admin_note ? `담당자 메모: ${r.admin_note}` : null,
@@ -482,8 +482,8 @@ function initHeader() {
   document.title = `${CONFIG.COURSE_NAME} 임원 골프예약`;
   document.getElementById('page-title').textContent = `⛳ ${CONFIG.COURSE_NAME} 임원 골프예약 현황`;
   document.getElementById('page-sub').textContent = IS_ADMIN
-    ? '희망일정 클릭 → 확정/불가 처리 · 날짜 클릭 → 확정 예약 직접 등록 · 30초 자동 동기화'
-    : '날짜 클릭 → 희망일정 등록 · 예약 클릭 → 상세/수정 · 30초 자동 동기화';
+    ? '요청일정 클릭 → 확정/불가 처리 · 날짜 클릭 → 확정 예약 직접 등록 · 30초 자동 동기화'
+    : '날짜 클릭 → 요청일정 등록 · 예약 클릭 → 상세/수정 · 30초 자동 동기화';
   const b = document.getElementById('role-badge');
   b.className = 'badge ' + (IS_ADMIN ? 'role-admin' : 'role-ceo');
   b.textContent = IS_ADMIN ? `관리자 · ${CONFIG.ADMIN_NAME}` : '대표님 화면';
@@ -540,7 +540,7 @@ function renderAll() { renderCalendar(); renderList(); renderKPI(); renderPendin
 
 function pillText(r) {
   // s = 상태(항상 표시), t = 시간(좁은 화면에서는 숨김)
-  if (r.status === 'requested') return { s: '희망', t: r.req_time || '시간무관', n: r.name || '' };
+  if (r.status === 'requested') return { s: '요청', t: r.req_time || '시간무관', n: r.name || '' };
   if (r.status === 'declined')  return { s: '불가', t: r.req_time || '', n: r.name || '' };
   if (r.status === 'cancel_req') return { s: '취소요청', t: r.time || '', n: r.name || '' };
   return { s: '확정', t: r.time || '', n: r.name || '' };
@@ -589,7 +589,7 @@ function renderList() {
   tb.innerHTML = [...rows].sort((a, b) => a.day - b.day).map((r, i) => {
     const dow = getDow(year, month, r.day);
     const dc = dow === 0 ? '#e74c3c' : dow === 6 ? '#2980b9' : '#3a4f60';
-    const timeCell = r.time ? `<b style="color:#1e8449">${esc(r.time)}</b>` : `<span class="muted">희망: ${esc(r.req_time || '무관')}</span>`;
+    const timeCell = r.time ? `<b style="color:#1e8449">${esc(r.time)}</b>` : `<span class="muted">요청: ${esc(r.req_time || '무관')}</span>`;
     const memo = [r.req_note, r.admin_note].filter(Boolean).map(esc).join(' / ');
     return `<tr onclick="openDetail(${r.id})">
       <td class="muted">${String(i + 1).padStart(2, '0')}</td>
@@ -691,17 +691,17 @@ function openNew(day) {
       ${area('f-anote', '담당자 메모 (선택)', '', '예) 2팀 / 카트 포함 등')}
       <div class="modal-btns"><button class="b-plain" onclick="closeModal()">취소</button><button class="b-primary" id="b-go" onclick="adminCreate(${day})">확정 등록</button></div>`);
   } else {
-    openModal(`<h3>${month}월 ${day}일 희망일정 등록</h3>
+    openModal(`<h3>${month}월 ${day}일 요청일정 등록</h3>
       <div class="status-line">등록하시면 담당자(${esc(CONFIG.ADMIN_NAME)})에게 알림메일이 발송되고, 예약이 확정되면 대표님께 메일로 안내드립니다.</div>
       ${quotaWarn(t)}
       ${field('f-date', '날짜', dateLine(day), '', true)}
       ${openBox(day, t)}
-      ${field('f-reqtime', '희망 시간대', '', '예) 오전 8시 전후')}
+      ${field('f-reqtime', '요청 시간대', '', '예) 오전 8시 전후')}
       ${chips('f-reqtime', ['오전 이른 시간', '오전', '점심 전후', '오후', '시간 무관'])}
       ${field('f-name', '예약자', CONFIG.CEO_NAME, '')}
       ${area('f-rnote', '요청 메모 (선택)', '', '예) 4인 / 동반자 ○○○ 대표')}
       ${typeSelect(t)}
-      <div class="modal-btns"><button class="b-plain" onclick="closeModal()">취소</button><button class="b-primary" id="b-go" onclick="ceoCreate(${day})">희망일정 등록</button></div>`);
+      <div class="modal-btns"><button class="b-plain" onclick="closeModal()">취소</button><button class="b-primary" id="b-go" onclick="ceoCreate(${day})">요청일정 등록</button></div>`);
   }
 }
 
@@ -710,7 +710,7 @@ function openDetail(id) {
   const r = rows.find(x => x.id === id); if (!r) return;
   const { month } = MONTHS[curIdx];
   const head = `<h3>${month}월 ${r.day}일 · ${STATUS_KR[r.status]}</h3><div class="status-line">${dateLine(r.day)} · ${TYPE_KR[r.type]}</div>`;
-  const reqInfo = (r.req_time || r.req_note) ? `<div class="info-box"><b>대표님 요청</b><br>희망 시간대: ${esc(r.req_time || '-')}${r.req_note ? `<br>메모: ${esc(r.req_note)}` : ''}</div>` : '';
+  const reqInfo = (r.req_time || r.req_note) ? `<div class="info-box"><b>대표님 요청</b><br>요청 시간대: ${esc(r.req_time || '-')}${r.req_note ? `<br>메모: ${esc(r.req_note)}` : ''}</div>` : '';
   let body = '', btns = '';
 
   if (IS_ADMIN) {
@@ -747,11 +747,11 @@ function openDetail(id) {
   } else {
     if (r.status === 'requested') {
       body = `<div class="status-line" style="margin-top:-8px">담당자가 예약을 진행 중입니다. 확정되면 메일로 안내드립니다.</div>
-        ${field('f-reqtime', '희망 시간대', r.req_time || '')}
+        ${field('f-reqtime', '요청 시간대', r.req_time || '')}
         ${chips('f-reqtime', ['오전 이른 시간', '오전', '점심 전후', '오후', '시간 무관'])}
         ${field('f-name', '예약자', r.name || '')}
         ${area('f-rnote', '요청 메모', r.req_note || '')}`;
-      btns = `<button class="b-warn" onclick="ceoWithdraw(${id})">희망 철회</button><button class="b-primary" id="b-go" onclick="ceoEdit(${id})">수정 저장</button>`;
+      btns = `<button class="b-warn" onclick="ceoWithdraw(${id})">요청 철회</button><button class="b-primary" id="b-go" onclick="ceoEdit(${id})">수정 저장</button>`;
     } else if (r.status === 'confirmed') {
       body = `<div class="info-box" style="font-size:14px"><b>티타임 ${esc(r.time || '-')}</b><br>예약자: ${esc(r.name || '-')}${r.admin_note ? `<br>메모: ${esc(r.admin_note)}` : ''}</div>
         ${area('f-rnote', '취소 요청 시 메모 (선택)', '', '예) 일정 변경으로 취소 부탁')}`;
@@ -782,17 +782,17 @@ function ceoCreate(day) {
   const { year, month } = MONTHS[curIdx];
   const d = { year, month, day, type: val('f-type') || $('f-type').value, status: 'requested', req_time: val('f-reqtime'), req_note: val('f-rnote'), name: val('f-name') || CONFIG.CEO_NAME };
   if (quotaFull(d.type) && !confirm(`이번 달 ${TYPE_KR[d.type]} 한도(${CONFIG.LIMITS[d.type]}회)가 확정+요청으로 이미 찼습니다.\n그래도 등록하시겠습니까?`)) return;
-  run(async () => { const r = await DB.insert(d); notify('admin', `희망일정 등록 ${subjDate(day)} ${d.req_time}`, ['대표님이 희망일정을 등록했습니다.', '', ...describe(r || d), ...openLines(r || d)]); });
+  run(async () => { const r = await DB.insert(d); notify('admin', `요청일정 등록 ${subjDate(day)} ${d.req_time}`, ['대표님이 요청일정을 등록했습니다.', '', ...describe(r || d), ...openLines(r || d)]); });
 }
 function ceoEdit(id) {
   const r = rows.find(x => x.id === id);
   const d = { req_time: val('f-reqtime'), req_note: val('f-rnote'), name: val('f-name') };
-  run(async () => { await DB.update(id, d); notify('admin', `희망일정 수정 ${subjDate(r.day)}`, ['대표님이 희망일정을 수정했습니다.', '', ...describe({ ...r, ...d }), ...openLines(r)]); });
+  run(async () => { await DB.update(id, d); notify('admin', `요청일정 수정 ${subjDate(r.day)}`, ['대표님이 요청일정을 수정했습니다.', '', ...describe({ ...r, ...d }), ...openLines(r)]); });
 }
 function ceoWithdraw(id) {
   const r = rows.find(x => x.id === id);
-  if (!confirm('이 희망일정을 철회하시겠습니까?')) return;
-  run(async () => { await DB.remove(id); notify('admin', `희망일정 철회 ${subjDate(r.day)}`, ['대표님이 희망일정을 철회했습니다.', '', ...describe(r)]); });
+  if (!confirm('이 요청일정을 철회하시겠습니까?')) return;
+  run(async () => { await DB.remove(id); notify('admin', `요청일정 철회 ${subjDate(r.day)}`, ['대표님이 요청일정을 철회했습니다.', '', ...describe(r)]); });
 }
 function ceoCancelReq(id) {
   const r = rows.find(x => x.id === id);
@@ -817,7 +817,7 @@ function adminConfirm(id) {
   const d = { status: 'confirmed', time, name, type: $('f-type').value, admin_note: val('f-anote') };
   const x = counts()[d.type];
   if (x.used >= x.limit && !confirm(`${TYPE_KR[d.type]} 한도(${x.limit}회)를 초과합니다. 그래도 확정할까요?`)) return;
-  run(async () => { await DB.update(id, d); notify('all', `예약 확정 ${subjDate(r.day)} ${time}`, ['요청하신 희망일정의 골프장 예약이 확정되었습니다.', '', ...describe({ ...r, ...d })]); });
+  run(async () => { await DB.update(id, d); notify('all', `예약 확정 ${subjDate(r.day)} ${time}`, ['요청하신 요청일정의 골프장 예약이 확정되었습니다.', '', ...describe({ ...r, ...d })]); });
 }
 function adminDecline(id) {
   const r = rows.find(x => x.id === id);
