@@ -226,6 +226,8 @@ const CONFIG = {
     .cal-cell { min-height: 70px; padding: 4px 3px 18px; }
     .pill { padding: 2px 3px; }
     .pill .n { display: none; }
+    .pill .pt { display: none; }
+    .pill .t { text-align: center; }
     .holiday-label { display: none; }
     .kpi-value { font-size: 24px; }
     .add-btn { display: none !important; }
@@ -537,10 +539,11 @@ function counts() {
 function renderAll() { renderCalendar(); renderList(); renderKPI(); renderPending(); }
 
 function pillText(r) {
-  if (r.status === 'requested') return { t: `희망 · ${r.req_time || '시간무관'}`, n: r.name || '' };
-  if (r.status === 'declined')  return { t: '예약 불가', n: r.req_time || '' };
-  if (r.status === 'cancel_req') return { t: `취소요청 ${r.time || ''}`, n: r.name || '' };
-  return { t: r.time || '', n: r.name || '' };
+  // s = 상태(항상 표시), t = 시간(좁은 화면에서는 숨김)
+  if (r.status === 'requested') return { s: '희망', t: r.req_time || '시간무관', n: r.name || '' };
+  if (r.status === 'declined')  return { s: '불가', t: r.req_time || '', n: r.name || '' };
+  if (r.status === 'cancel_req') return { s: '취소요청', t: r.time || '', n: r.name || '' };
+  return { s: '확정', t: r.time || '', n: r.name || '' };
 }
 
 function renderCalendar() {
@@ -558,7 +561,7 @@ function renderCalendar() {
     rows.filter(r => r.day === day).forEach(r => {
       const p = document.createElement('div'); const tx = pillText(r);
       p.className = `pill st-${r.status}`;
-      p.innerHTML = `<div class="t">${esc(tx.t)}</div>${tx.n ? `<div class="n">${esc(tx.n)}</div>` : ''}`;
+      p.innerHTML = `<div class="t"><b class="ps">${tx.s}</b>${tx.t ? `<span class="pt"> · ${esc(tx.t)}</span>` : ''}</div>${tx.n ? `<div class="n">${esc(tx.n)}</div>` : ''}`;
       p.title = `${STATUS_KR[r.status]} · ${tx.t} ${tx.n}`;
       p.onclick = e => { e.stopPropagation(); openDetail(r.id); };
       cell.appendChild(p);
