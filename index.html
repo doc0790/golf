@@ -166,6 +166,10 @@ const CONFIG = {
   .st-declined   { background: #f4f5f7; border: 1px solid #dde2e8; color: #9aa5b1; text-decoration: line-through; }
   .st-cancel_req { background: #fdecea; border: 1.5px dashed #e57373; color: #b71c1c; }
   .pill:hover { filter: brightness(0.96); }
+  .pill.open-mark { background: #eef2ff; border: 1.5px solid #7986cb; color: #283593; }
+  .pill.open-mark.late { background: #fdecea; border-color: #e57373; color: #b71c1c; }
+  .legend .admin-only { display: none; }
+  body.admin .legend .admin-only { display: inline; }
 
   .list-wrap { background: #fff; border: 1px solid #e4eaf2; border-radius: 13px; overflow-x: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
   .list-table { width: 100%; border-collapse: collapse; min-width: 640px; }
@@ -279,6 +283,7 @@ const CONFIG = {
 <div class="section-title" id="cal-section-title"></div>
 <div class="legend">
   <span><i style="background:#fff8e6;border:1.5px dashed #f0b44c"></i>요청(예약 대기)</span>
+  <span class="admin-only"><i style="background:#eef2ff;border:1.5px solid #7986cb"></i>예약일 · 요청 건 예약 오픈 (지나면 빨간 '미예약')</span>
   <span><i style="background:#eaf7f0;border:1px solid #a9dfbf"></i>확정</span>
   <span><i style="background:#fdecea;border:1.5px dashed #e57373"></i>취소 요청</span>
   <span><i style="background:#f4f5f7;border:1px solid #dde2e8"></i>예약 불가</span>
@@ -352,6 +357,7 @@ const MONTHS = [];
 })();
 let curIdx = (() => { const n = new Date(); const i = MONTHS.findIndex(x => x.year === n.getFullYear() && x.month === n.getMonth() + 1); return i >= 0 ? i : MONTHS.length - 1; })();
 let rows = [];
+let allRequested = [];   // 관리자: 전체 월의 '요청' 건 (예약할 날짜 표시용)
 
 // ── 데이터 계층 (Supabase / 데모) ───────────────────────
 const API = `${CONFIG.SUPABASE_URL}/rest/v1/reservations`;
@@ -360,6 +366,10 @@ const HDR = { apikey: CONFIG.SUPABASE_KEY, 'Content-Type': 'application/json', P
   ...(CONFIG.SUPABASE_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${CONFIG.SUPABASE_KEY}` } : {}) };
 
 const supaDB = {
+  async listRequested() {
+    const r = await fetch(`${API}?status=eq.requested&select=*`, { headers: HDR });
+    if (!r.ok) throw new Error(r.status); return r.json();
+  },
   async list(y, m) {
     const r = await fetch(`${API}?year=eq.${y}&month=eq.${m}&order=day.asc,created_at.asc`, { headers: HDR });
     if (!r.ok) throw new Error(r.status); return r.json();
@@ -397,6 +407,7 @@ const demoDB = (() => {
   const save = () => { try { localStorage.setItem('golf_demo', JSON.stringify(mem)); } catch (e) {} };
   return {
     async list(y, m) { return load().filter(r => r.year === y && r.month === m).sort((a, b) => a.day - b.day); },
+    async listRequested() { return load().filter(r => r.status === 'requested'); },
     async insert(d) { const all = load(); const row = { ...d, id: Math.max(0, ...all.map(r => r.id)) + 1, created_at: new Date().toISOString() }; all.push(row); save(); return row; },
     async update(id, d) { const r = load().find(x => x.id === id); Object.assign(r, d); save(); return r; },
     async remove(id) { mem = load().filter(r => r.id !== id); save(); },
@@ -479,6 +490,7 @@ function setSync(s) {
 }
 
 function initHeader() {
+  if (IS_ADMIN) document.body.classList.add('admin');
   document.title = `${CONFIG.COURSE_NAME} 임원 골프예약`;
   document.getElementById('page-title').textContent = `⛳ ${CONFIG.COURSE_NAME} 임원 골프예약 현황`;
   document.getElementById('page-sub').textContent = IS_ADMIN
@@ -511,14 +523,17 @@ function onMonthChange() {
   document.getElementById('btn-next').disabled = curIdx === MONTHS.length - 1;
   renderMonthPills();
   rows = []; renderAll();
-  fetchAll();
+  return fetchAll();
 }
 function changeMonth(d) { const n = curIdx + d; if (n < 0 || n >= MONTHS.length) return; curIdx = n; onMonthChange(); }
 
 async function fetchAll() {
   setSync('ing');
   const { year, month } = MONTHS[curIdx];
-  try { rows = await DB.list(year, month); setSync('ok'); renderAll(); }
+  try {
+    const [r1, r2] = await Promise.all([DB.list(year, month), IS_ADMIN ? DB.listRequested() : Promise.resolve([])]);
+    rows = r1; allRequested = r2; setSync('ok'); renderAll();
+  }
   catch (e) { setSync('err'); }
 }
 
@@ -551,6 +566,11 @@ function renderCalendar() {
   const grid = document.getElementById('cal-grid'); grid.innerHTML = '';
   const fd = getDow(year, month, 1), days = daysInMonth(year, month);
   const now = new Date(); const todayKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  const openMarks = {};
+  if (IS_ADMIN) allRequested.forEach(r => {
+    const oi = openInfo(r.year, r.month, r.day, r.type, r.open_date);
+    if (oi.date && oi.date.getFullYear() === year && oi.date.getMonth() + 1 === month) (openMarks[oi.date.getDate()] ||= []).push(r);
+  });
   for (let i = 0; i < fd; i++) grid.insertAdjacentHTML('beforeend', '<div class="cal-cell empty"></div>');
   for (let day = 1; day <= days; day++) {
     const dow = getDow(year, month, day), hol = getHoliday(year, month, day);
@@ -564,6 +584,17 @@ function renderCalendar() {
       p.innerHTML = `<div class="t"><b class="ps">${tx.s}</b>${tx.t ? `<span class="pt"> · ${esc(tx.t)}</span>` : ''}</div>${tx.n ? `<div class="n">${esc(tx.n)}</div>` : ''}`;
       p.title = `${STATUS_KR[r.status]} · ${tx.t} ${tx.n}`;
       p.onclick = e => { e.stopPropagation(); openDetail(r.id); };
+      cell.appendChild(p);
+    });
+    // 관리자: 이 날 09:00에 예약이 열리는 '요청' 건 (확정되면 자동으로 사라짐)
+    (openMarks[day] || []).forEach(r => {
+      const late = key < todayKey;
+      const p = document.createElement('div');
+      p.className = 'pill open-mark' + (late ? ' late' : '');
+      const play = `${r.month}/${r.day}(${DAY_KR[getDow(r.year, r.month, r.day)]})`;
+      p.innerHTML = `<div class="t"><b class="ps">${late ? '미예약' : '예약일'}</b><span class="pt"> · 09:00</span></div><div class="n">→ ${play} ${esc(r.req_time || '')}</div>`;
+      p.title = `${play} 요청 건 예약 오픈일${late ? ' (지났는데 아직 확정 안 됨)' : ''} — 클릭하면 해당 건으로 이동`;
+      p.onclick = async e => { e.stopPropagation(); await goToRow(r); };
       cell.appendChild(p);
     });
     const add = document.createElement('button'); add.className = 'add-btn'; add.textContent = '+'; add.setAttribute('aria-label', `${day}일 등록`);
@@ -581,6 +612,12 @@ function openCell(r) {
   const oi = rowOpen(r);
   if (oi.unknown) return '<span style="color:#c0392b;font-weight:700">공지 확인</span>';
   return oi.opened ? `<a href="${esc(CONFIG.BOOKING_URL)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#1e8449;font-weight:700">오픈됨 · 예약하기</a>` : `<span style="color:#d68910;font-weight:700">${oi.label}</span>`;
+}
+async function goToRow(r) {
+  const i = MONTHS.findIndex(m => m.year === r.year && m.month === r.month);
+  if (i < 0) return;
+  if (i !== curIdx) { curIdx = i; await onMonthChange(); }
+  openDetail(r.id);
 }
 function renderList() {
   const { year, month } = MONTHS[curIdx];
