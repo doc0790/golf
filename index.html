@@ -164,10 +164,12 @@ const CONFIG = {
   .st-confirmed  { background: #eaf7f0; border: 1px solid #a9dfbf; color: #1a5e34; }
   .st-requested  { background: #fff8e6; border: 1.5px dashed #f0b44c; color: #8a5a00; }
   .st-declined   { background: #f4f5f7; border: 1px solid #dde2e8; color: #9aa5b1; text-decoration: line-through; }
+  .st-applied    { background: #e8f4fd; border: 1.5px solid #64b5f6; color: #0d47a1; }
   .st-cancel_req { background: #fdecea; border: 1.5px dashed #e57373; color: #b71c1c; }
   .pill:hover { filter: brightness(0.96); }
   .pill.open-mark { background: #eef2ff; border: 1.5px solid #7986cb; color: #283593; }
-  .pill.open-mark.late { background: #fdecea; border-color: #e57373; color: #b71c1c; }
+  .pill.result-mark { background: #e0f7fa; border: 1.5px solid #26a69a; color: #00695c; }
+  .pill.result-mark.late, .pill.open-mark.late { background: #fdecea; border-color: #e57373; color: #b71c1c; }
   .legend .admin-only { display: none; }
   body.admin .legend .admin-only { display: inline; }
 
@@ -182,7 +184,7 @@ const CONFIG = {
   .type-weekday  { background: #dbeeff; color: #1a6fa8; }
   .type-saturday { background: #d5f5ef; color: #0e6655; }
   .type-sunday   { background: #fde8e8; color: #c0392b; }
-  .tag.st-confirmed, .tag.st-requested, .tag.st-declined, .tag.st-cancel_req { border-width: 1px; text-decoration: none; }
+  .tag.st-applied, .tag.st-confirmed, .tag.st-requested, .tag.st-declined, .tag.st-cancel_req { border-width: 1px; text-decoration: none; }
   .muted { color: #b0bec5; }
 
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
@@ -283,7 +285,9 @@ const CONFIG = {
 <div class="section-title" id="cal-section-title"></div>
 <div class="legend">
   <span><i style="background:#fff8e6;border:1.5px dashed #f0b44c"></i>요청(예약 대기)</span>
-  <span class="admin-only"><i style="background:#eef2ff;border:1.5px solid #7986cb"></i>예약일 · 요청 건 예약 오픈 (지나면 빨간 '미예약')</span>
+  <span><i style="background:#e8f4fd;border:1.5px solid #64b5f6"></i>확정대기</span>
+  <span class="admin-only"><i style="background:#eef2ff;border:1.5px solid #7986cb"></i>예약일 (지나면 빨간 '미예약')</span>
+  <span class="admin-only"><i style="background:#e0f7fa;border:1.5px solid #26a69a"></i>결과확인일</span>
   <span><i style="background:#eaf7f0;border:1px solid #a9dfbf"></i>확정</span>
   <span><i style="background:#fdecea;border:1.5px dashed #e57373"></i>취소 요청</span>
   <span><i style="background:#f4f5f7;border:1px solid #dde2e8"></i>예약 불가</span>
@@ -316,8 +320,8 @@ const CONFIG = {
 // ── 기본 상수 ────────────────────────────────────────────
 const DAY_KR = ['일','월','화','수','목','금','토'];
 const TYPE_KR = { weekday: '주중', saturday: '토요일', sunday: '일/공휴일' };
-const STATUS_KR = { requested: '요청 (예약 대기)', confirmed: '확정', declined: '예약 불가', cancel_req: '취소 요청' };
-const STATUS_SHORT = { requested: '요청', confirmed: '확정', declined: '불가', cancel_req: '취소요청' };
+const STATUS_KR = { requested: '요청 (예약 대기)', applied: '확정대기 (골프장 신청 완료)', confirmed: '확정', declined: '예약 불가', cancel_req: '취소 요청' };
+const STATUS_SHORT = { requested: '요청', applied: '확정대기', confirmed: '확정', declined: '불가', cancel_req: '취소요청' };
 
 const params = new URLSearchParams(location.search);
 const IS_ADMIN = params.get('admin') === CONFIG.ADMIN_KEY;
@@ -367,7 +371,7 @@ const HDR = { apikey: CONFIG.SUPABASE_KEY, 'Content-Type': 'application/json', P
 
 const supaDB = {
   async listRequested() {
-    const r = await fetch(`${API}?status=eq.requested&select=*`, { headers: HDR });
+    const r = await fetch(`${API}?status=in.(requested,applied)&select=*`, { headers: HDR });
     if (!r.ok) throw new Error(r.status); return r.json();
   },
   async list(y, m) {
@@ -407,7 +411,7 @@ const demoDB = (() => {
   const save = () => { try { localStorage.setItem('golf_demo', JSON.stringify(mem)); } catch (e) {} };
   return {
     async list(y, m) { return load().filter(r => r.year === y && r.month === m).sort((a, b) => a.day - b.day); },
-    async listRequested() { return load().filter(r => r.status === 'requested'); },
+    async listRequested() { return load().filter(r => r.status === 'requested' || r.status === 'applied'); },
     async insert(d) { const all = load(); const row = { ...d, id: Math.max(0, ...all.map(r => r.id)) + 1, created_at: new Date().toISOString() }; all.push(row); save(); return row; },
     async update(id, d) { const r = load().find(x => x.id === id); Object.assign(r, d); save(); return r; },
     async remove(id) { mem = load().filter(r => r.id !== id); save(); },
@@ -466,6 +470,14 @@ function openInfo(y, m, d, type, manual) {
   const openAt = new Date(o.getFullYear(), o.getMonth(), o.getDate(), 9, 0);
   return { date: o, label: `${o.getMonth() + 1}/${o.getDate()}(${DAY_KR[o.getDay()]}) 09:00`, opened: new Date() >= openAt, manual: !!manual };
 }
+// 결과 발표일: 오픈일 이후 첫 월요일 (주말·공휴일 건은 목요일 신청 → 차주 월요일 확정)
+function resultDate(r) {
+  const oi = openInfo(r.year, r.month, r.day, r.type, r.open_date);
+  if (!oi.date) return null;
+  const d = new Date(oi.date); d.setDate(d.getDate() + (((1 - d.getDay()) + 7) % 7 || 7));
+  return d;
+}
+const mdLabel = d => `${d.getMonth() + 1}/${d.getDate()}(${DAY_KR[d.getDay()]})`;
 const rowOpen = r => { const { year, month } = MONTHS[curIdx]; return openInfo(year, month, r.day, r.type, r.open_date); };
 function openLines(r) {
   const oi = rowOpen(r);
@@ -543,7 +555,7 @@ function counts() {
   for (const t of ['weekday', 'saturday', 'sunday']) {
     c[t] = {
       used: rows.filter(r => r.type === t && (r.status === 'confirmed' || r.status === 'cancel_req')).length,
-      pend: rows.filter(r => r.type === t && r.status === 'requested').length,
+      pend: rows.filter(r => r.type === t && (r.status === 'requested' || r.status === 'applied')).length,
       limit: CONFIG.LIMITS[t],
     };
   }
@@ -558,6 +570,7 @@ function pillText(r) {
   if (r.status === 'requested') return { s: '요청', t: r.req_time || '시간무관', n: r.name || '' };
   if (r.status === 'declined')  return { s: '불가', t: r.req_time || '', n: r.name || '' };
   if (r.status === 'cancel_req') return { s: '취소요청', t: r.time || '', n: r.name || '' };
+  if (r.status === 'applied') return { s: '확정대기', t: r.time || r.req_time || '', n: r.name || '' };
   return { s: '확정', t: r.time || '', n: r.name || '' };
 }
 
@@ -568,8 +581,8 @@ function renderCalendar() {
   const now = new Date(); const todayKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
   const openMarks = {};
   if (IS_ADMIN) allRequested.forEach(r => {
-    const oi = openInfo(r.year, r.month, r.day, r.type, r.open_date);
-    if (oi.date && oi.date.getFullYear() === year && oi.date.getMonth() + 1 === month) (openMarks[oi.date.getDate()] ||= []).push(r);
+    const d = r.status === 'applied' ? resultDate(r) : openInfo(r.year, r.month, r.day, r.type, r.open_date).date;
+    if (d && d.getFullYear() === year && d.getMonth() + 1 === month) (openMarks[d.getDate()] ||= []).push(r);
   });
   for (let i = 0; i < fd; i++) grid.insertAdjacentHTML('beforeend', '<div class="cal-cell empty"></div>');
   for (let day = 1; day <= days; day++) {
@@ -589,11 +602,14 @@ function renderCalendar() {
     // 관리자: 이 날 09:00에 예약이 열리는 '요청' 건 (확정되면 자동으로 사라짐)
     (openMarks[day] || []).forEach(r => {
       const late = key < todayKey;
+      const applied = r.status === 'applied';
       const p = document.createElement('div');
-      p.className = 'pill open-mark' + (late ? ' late' : '');
+      p.className = 'pill ' + (applied ? 'result-mark' : 'open-mark') + (late ? ' late' : '');
       const play = `${r.month}/${r.day}(${DAY_KR[getDow(r.year, r.month, r.day)]})`;
-      p.innerHTML = `<div class="t"><b class="ps">${late ? '미예약' : '예약일'}</b><span class="pt"> · 09:00</span></div><div class="n">→ ${play} ${esc(r.req_time || '')}</div>`;
-      p.title = `${play} 요청 건 예약 오픈일${late ? ' (지났는데 아직 확정 안 됨)' : ''} — 클릭하면 해당 건으로 이동`;
+      const label = applied ? (late ? '결과미입력' : '결과확인') : (late ? '미예약' : '예약일');
+      p.innerHTML = `<div class="t"><b class="ps">${label}</b>${applied ? '' : '<span class="pt"> · 09:00</span>'}</div><div class="n">→ ${play} ${esc(applied ? (r.time || r.req_time || '') : (r.req_time || ''))}</div>`;
+      p.title = applied ? `${play} 확정대기 건 결과 발표일${late ? ' (지났는데 아직 확정/불가 처리 안 됨)' : ''}` : `${play} 요청 건 예약 오픈일${late ? ' (지났는데 아직 신청 안 됨)' : ''}`;
+      p.title += ' — 클릭하면 해당 건으로 이동';
       p.onclick = async e => { e.stopPropagation(); await goToRow(r); };
       cell.appendChild(p);
     });
@@ -608,6 +624,7 @@ function renderCalendar() {
 }
 
 function openCell(r) {
+  if (r.status === 'applied') { const d = resultDate(r); return d ? `<span style="color:#0d47a1;font-weight:700">결과 ${mdLabel(d)}</span>` : '<span class="muted">-</span>'; }
   if (r.status !== 'requested') return '<span class="muted">-</span>';
   const oi = rowOpen(r);
   if (oi.unknown) return '<span style="color:#c0392b;font-weight:700">공지 확인</span>';
@@ -668,7 +685,7 @@ function renderKPI() {
 
 function renderPending() {
   const banner = document.getElementById('pending-banner');
-  const list = rows.filter(r => IS_ADMIN ? (r.status === 'requested' || r.status === 'cancel_req') : r.status === 'declined');
+  const list = rows.filter(r => IS_ADMIN ? (r.status === 'requested' || r.status === 'applied' || r.status === 'cancel_req') : r.status === 'declined');
   if (!list.length) { banner.classList.remove('show'); return; }
   const { year, month } = MONTHS[curIdx];
   document.getElementById('pending-title').textContent = IS_ADMIN
@@ -764,7 +781,16 @@ function openDetail(id) {
         ${typeSelect(r.type)}
         ${area('f-anote', '담당자 메모 / 불가 사유', r.admin_note || '', '확정 시 참고사항, 불가 시 사유')}`;
       body += `<a href="${esc(CONFIG.BOOKING_URL)}" target="_blank" rel="noopener" class="b-link">⛳ ${esc(CONFIG.COURSE_NAME)} 예약하러 가기 ↗</a>`;
-      btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
+      btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-blue" onclick="adminApply(${id})">신청 완료 (확정대기)</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
+    } else if (r.status === 'applied') {
+      const rd = resultDate(r);
+      body = `${reqInfo}<div class="info-box">골프장 신청 완료 · 결과 발표 <b>${rd ? mdLabel(rd) : '-'}</b> (발표 후 확정 또는 불가 처리)</div>
+        ${field('f-time', '확정 티타임', r.time || '', '예) 08시00분')}
+        ${chips('f-time', ['07시00분', '08시00분', '12시00분'])}
+        ${field('f-name', '예약자', r.name || CONFIG.CEO_NAME)}
+        ${typeSelect(r.type)}
+        ${area('f-anote', '담당자 메모 / 불가 사유', r.admin_note || '', '확정 시 참고사항, 불가 시 사유')}`;
+      btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-plain" onclick="adminUnapply(${id})">요청으로 되돌리기</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
     } else if (r.status === 'confirmed') {
       body = `${reqInfo}
         ${field('f-time', '티타임', r.time || '')}
@@ -793,6 +819,10 @@ function openDetail(id) {
       body = `<div class="info-box" style="font-size:14px"><b>티타임 ${esc(r.time || '-')}</b><br>예약자: ${esc(r.name || '-')}${r.admin_note ? `<br>메모: ${esc(r.admin_note)}` : ''}</div>
         ${area('f-rnote', '취소 요청 시 메모 (선택)', '', '예) 일정 변경으로 취소 부탁')}`;
       btns = `<button class="b-warn" onclick="ceoCancelReq(${id})">취소 요청</button>`;
+    } else if (r.status === 'applied') {
+      const rd = resultDate(r);
+      body = `${reqInfo}<div class="info-box" style="font-size:13px">골프장에 예약 신청을 완료했습니다.<br>결과는 <b>${rd ? mdLabel(rd) : '-'}</b>에 나오며, 확정되면 메일로 안내드립니다.</div>
+        <div class="status-line">변경·취소가 필요하시면 담당자(${esc(CONFIG.ADMIN_NAME)})에게 연락 주세요.</div>`;
     } else if (r.status === 'cancel_req') {
       body = `<div class="info-box">취소 요청을 접수했습니다. 담당자가 골프장 취소를 진행 중입니다.<br>티타임 ${esc(r.time || '-')}</div>`;
     } else {
@@ -879,6 +909,13 @@ function adminRejectCancel(id) {
   const note = val('f-anote');
   if (!note) { alert('담당자 메모에 사유를 입력해 주세요. (예: 취소 기한 경과)'); return; }
   run(async () => { await DB.update(id, { status: 'confirmed', admin_note: note }); notify('all', `취소 불가 안내 ${subjDate(r.day)} ${r.time || ''}`, ['요청하신 예약 취소가 어려워 예약이 유지됩니다.', '', ...describe({ ...r, admin_note: note })]); });
+}
+function adminApply(id) {
+  const d = { status: 'applied', time: val('f-time') || null, name: val('f-name'), type: $('f-type').value, admin_note: val('f-anote') };
+  run(async () => { await DB.update(id, d); toast('확정대기로 변경 (메일 발송 없음)'); });
+}
+function adminUnapply(id) {
+  run(async () => { await DB.update(id, { status: 'requested' }); toast('요청 상태로 되돌림'); });
 }
 function adminSetOpen(id) {
   const v = val('f-open') || null;
