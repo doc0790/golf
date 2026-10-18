@@ -485,7 +485,7 @@ function openLines(r) {
     '',
     oi.unknown ? '예약 오픈: 평일 공휴일 — 아도니스 별도 공지 확인 필요'
       : oi.opened ? `예약 오픈: ${oi.label} — 이미 오픈되어 지금 예약 가능합니다.`
-      : `예약 오픈: ${oi.label} (전날 저녁에 알림메일 발송)`,
+      : `예약 오픈: ${oi.label} (당일 08:00 알림메일 발송)`,
     '',
     '__BOOKING__',
   ];
@@ -725,8 +725,8 @@ function quotaWarn(type) {
 function openBox(day, type, manual) {
   const { year, month } = MONTHS[curIdx];
   const oi = openInfo(year, month, day, type, manual);
-  if (oi.unknown) return `<div class="warn-box">평일 공휴일은 아도니스 별도 공지로 예약 오픈일이 정해집니다.${IS_ADMIN ? ' 공지 확인 후 아래에 오픈일을 입력하면 전날 저녁 알림이 발송됩니다.' : ''}</div>`;
-  return `<div class="info-box">골프장 예약 오픈: <b>${oi.label}</b>${oi.manual ? ' (공지 기준)' : ''}${oi.opened ? ' <span style="color:#1e8449">· 오픈됨</span>' : ' · 전날 저녁 담당자 알림'}</div>`;
+  if (oi.unknown) return `<div class="warn-box">평일 공휴일은 아도니스 별도 공지로 예약 오픈일이 정해집니다.${IS_ADMIN ? ' 공지 확인 후 아래에 오픈일을 입력하면 당일 08:00 알림이 발송됩니다.' : ''}</div>`;
+  return `<div class="info-box">골프장 예약 오픈: <b>${oi.label}</b>${oi.manual ? ' (공지 기준)' : ''}${oi.opened ? ' <span style="color:#1e8449">· 오픈됨</span>' : ' · 당일 08:00 담당자 알림'}</div>`;
 }
 
 // 날짜 클릭 → 신규
@@ -919,7 +919,7 @@ function adminUnapply(id) {
 }
 function adminSetOpen(id) {
   const v = val('f-open') || null;
-  run(async () => { await DB.update(id, { open_date: v }); toast(v ? '오픈일 저장 — 전날 저녁 알림 대상' : '오픈일 해제'); });
+  run(async () => { await DB.update(id, { open_date: v }); toast(v ? '오픈일 저장 — 당일 08:00 알림 대상' : '오픈일 해제'); });
 }
 function silentRemove(id) {
   if (!confirm('목록에서 삭제할까요?')) return;
