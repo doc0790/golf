@@ -814,7 +814,7 @@ function openDetail(id) {
         ${field('f-name', '예약자', r.name || '')}
         ${typeSelect(r.type)}
         ${area('f-anote', '담당자 메모', r.admin_note || '')}`;
-      btns = `<button class="b-warn" onclick="adminRemove(${id}, '예약 취소')">예약 취소</button><button class="b-primary" id="b-go" onclick="adminEdit(${id})">변경 저장</button>`;
+      btns = `<button class="b-warn" onclick="adminRemove(${id}, '예약 취소')">예약 취소</button><button class="b-plain" onclick="adminRevert(${id})">요청으로 되돌리기</button><button class="b-primary" id="b-go" onclick="adminEdit(${id})">변경 저장</button>`;
     } else if (r.status === 'cancel_req') {
       body = `<div class="info-box"><b>대표님 취소 요청</b><br>티타임 ${esc(r.time || '-')} · ${esc(r.name || '')}${r.req_note ? `<br>메모: ${esc(r.req_note)}` : ''}</div>
         ${area('f-anote', '담당자 메모', r.admin_note || '')}`;
@@ -938,6 +938,12 @@ function adminRequestCreate(day) {
 function adminApply(id) {
   const d = { status: 'applied', time: val('f-time') || null, name: val('f-name'), type: $('f-type').value, admin_note: val('f-anote') };
   run(async () => { await DB.update(id, d); toast('확정대기로 변경 (메일 발송 없음)'); });
+}
+// 확정 → 요청 (잘못 확정한 건 정정용, 메일 없음). 티타임은 요청 시간대로 옮김
+function adminRevert(id) {
+  const r = rows.find(x => x.id === id);
+  if (!confirm('이 건을 확정 전 \'요청\' 상태로 되돌릴까요? (메일은 발송되지 않습니다)')) return;
+  run(async () => { await DB.update(id, { status: 'requested', req_time: r.req_time || r.time, time: null }); toast('요청 상태로 되돌림 (메일 발송 없음)'); });
 }
 function adminUnapply(id) {
   run(async () => { await DB.update(id, { status: 'requested' }); toast('요청 상태로 되돌림'); });
