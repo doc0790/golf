@@ -208,6 +208,9 @@ const CONFIG = {
   .b-warn    { background: #fdecea; color: #c0392b; } .b-warn:hover { background: #c0392b; color: #fff; }
   .b-plain   { background: #f0f4f8; color: #4a6070; }
   .b-blue    { background: #d5e8f7; color: #1a6fa8; } .b-blue:hover { background: #1a6fa8; color: #fff; }
+  .seg { display: flex; background: #f0f4f8; border-radius: 10px; padding: 3px; margin-bottom: 14px; }
+  .seg button { flex: 1; border: none; background: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #7a8fa6; cursor: pointer; }
+  .seg button.on { background: #fff; color: #1a2535; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
   .b-link { display: block; text-align: center; background: #eaf7f0; color: #1e8449; border-radius: 9px; padding: 10px; font-size: 13px; font-weight: 700; text-decoration: none; margin-bottom: 12px; }
   .b-link:hover { background: #d4efe0; }
   .modal-btns button:disabled { opacity: .5; cursor: default; }
@@ -506,7 +509,7 @@ function initHeader() {
   document.title = `${CONFIG.COURSE_NAME} 임원 골프예약`;
   document.getElementById('page-title').textContent = `⛳ ${CONFIG.COURSE_NAME} 임원 골프예약 현황`;
   document.getElementById('page-sub').textContent = IS_ADMIN
-    ? '요청일정 클릭 → 확정/불가 처리 · 날짜 클릭 → 확정 예약 직접 등록 · 30초 자동 동기화'
+    ? '요청 클릭 → 신청완료/확정/불가 처리 · 날짜 클릭 → 요청 또는 확정 직접 등록 · 30초 자동 동기화'
     : '날짜 클릭 → 요청일정 등록 · 예약 클릭 → 상세/수정 · 30초 자동 동기화';
   const b = document.getElementById('role-badge');
   b.className = 'badge ' + (IS_ADMIN ? 'role-admin' : 'role-ceo');
@@ -730,11 +733,25 @@ function openBox(day, type, manual) {
 }
 
 // 날짜 클릭 → 신규
-function openNew(day) {
+function openNew(day, mode = 'request') {
   const { year, month } = MONTHS[curIdx];
   const t = autoType(year, month, day);
-  if (IS_ADMIN) {
-    openModal(`<h3>${month}월 ${day}일 확정 예약 등록</h3>
+  // 관리자: [요청 등록] / [확정 등록] 선택
+  const seg = `<div class="seg"><button class="${mode === 'request' ? 'on' : ''}" onclick="openNew(${day}, 'request')">요청 등록</button><button class="${mode === 'confirm' ? 'on' : ''}" onclick="openNew(${day}, 'confirm')">확정 등록</button></div>`;
+  if (IS_ADMIN && mode === 'request') {
+    openModal(`${seg}<h3>${month}월 ${day}일 요청 등록</h3>
+      <div class="status-line">전달받은 요청을 대신 등록합니다. 메일은 발송되지 않으며, 예약 오픈일 08:00 알림 대상이 됩니다.</div>
+      ${quotaWarn(t)}
+      ${field('f-date', '날짜', dateLine(day), '', true)}
+      ${openBox(day, t)}
+      ${field('f-name', '예약자', '', '예) ○○○ 대표')}
+      ${field('f-reqtime', '요청 시간대', '', '예) 오전 8시 전후')}
+      ${chips('f-reqtime', ['오전 이른 시간', '오전', '점심 전후', '오후', '시간 무관'])}
+      ${area('f-rnote', '요청 메모 (선택)', '', '예) 4인 / 요청자 ○○○ 대표 비서실')}
+      ${typeSelect(t)}
+      <div class="modal-btns"><button class="b-plain" onclick="closeModal()">취소</button><button class="b-primary" id="b-go" onclick="adminRequestCreate(${day})">요청 등록</button></div>`);
+  } else if (IS_ADMIN) {
+    openModal(`${seg}<h3>${month}월 ${day}일 확정 예약 등록</h3>
       <div class="status-line">골프장 예약이 완료된 건을 직접 등록합니다. 저장 시 대표님과 담당자 모두에게 확정 메일이 발송됩니다.</div>
       ${quotaWarn(t)}
       ${field('f-date', '날짜', dateLine(day), '', true)}
@@ -909,6 +926,14 @@ function adminRejectCancel(id) {
   const note = val('f-anote');
   if (!note) { alert('담당자 메모에 사유를 입력해 주세요. (예: 취소 기한 경과)'); return; }
   run(async () => { await DB.update(id, { status: 'confirmed', admin_note: note }); notify('all', `취소 불가 안내 ${subjDate(r.day)} ${r.time || ''}`, ['요청하신 예약 취소가 어려워 예약이 유지됩니다.', '', ...describe({ ...r, admin_note: note })]); });
+}
+function adminRequestCreate(day) {
+  const { year, month } = MONTHS[curIdx];
+  const name = val('f-name');
+  if (!name) { alert('예약자를 입력해 주세요.'); $('f-name').focus(); return; }
+  const d = { year, month, day, type: $('f-type').value, status: 'requested', req_time: val('f-reqtime'), req_note: val('f-rnote'), name };
+  if (quotaFull(d.type) && !confirm(`이번 달 ${TYPE_KR[d.type]} 한도(${CONFIG.LIMITS[d.type]}회)가 확정+요청으로 이미 찼습니다.\n그래도 등록할까요?`)) return;
+  run(async () => { await DB.insert(d); toast('요청 등록 완료 (메일 발송 없음)'); });
 }
 function adminApply(id) {
   const d = { status: 'applied', time: val('f-time') || null, name: val('f-name'), type: $('f-type').value, admin_note: val('f-anote') };
