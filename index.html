@@ -776,6 +776,13 @@ function openNew(day, mode = 'request') {
   }
 }
 
+// 관리자: 날짜 변경 줄
+const moveRow = r => {
+  const v = `${r.year}-${String(r.month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`;
+  return `<label for="f-move">날짜 변경</label>
+    <div style="display:flex;gap:6px"><input type="date" id="f-move" value="${v}" style="flex:1"><button class="chip" style="margin-bottom:12px;padding:0 14px" onclick="adminMove(${r.id})">날짜 변경</button></div>`;
+};
+
 // 예약 클릭 → 상세
 function openDetail(id) {
   const r = rows.find(x => x.id === id); if (!r) return;
@@ -788,7 +795,7 @@ function openDetail(id) {
     if (r.status === 'requested') {
       const { year: yy, month: mm } = MONTHS[curIdx];
       const showOpenField = isWeekdayHoliday(yy, mm, r.day, r.type) || r.open_date;
-      body = `${reqInfo}${openBox(r.day, r.type, r.open_date)}
+      body = `${reqInfo}${moveRow(r)}${openBox(r.day, r.type, r.open_date)}
         ${showOpenField ? `<label for="f-open">예약 오픈일 (아도니스 공지 기준, 09:00)</label>
           <div style="display:flex;gap:6px"><input type="date" id="f-open" value="${esc(r.open_date || '')}" style="flex:1"><button class="chip" style="margin-bottom:12px;padding:0 14px" onclick="adminSetOpen(${id})">오픈일 저장</button></div>` : ''}
         ${overWarn(r.type)}
@@ -798,16 +805,16 @@ function openDetail(id) {
         ${typeSelect(r.type)}
         ${area('f-anote', '담당자 메모 / 불가 사유', r.admin_note || '', '확정 시 참고사항, 불가 시 사유')}`;
       body += `<a href="${esc(CONFIG.BOOKING_URL)}" target="_blank" rel="noopener" class="b-link">⛳ ${esc(CONFIG.COURSE_NAME)} 예약하러 가기 ↗</a>`;
-      btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-blue" onclick="adminApply(${id})">신청 완료 (확정대기)</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
+      btns = `<button class="b-plain" onclick="adminDelete(${id})">삭제</button><button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-blue" onclick="adminApply(${id})">신청 완료 (확정대기)</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
     } else if (r.status === 'applied') {
       const rd = resultDate(r);
-      body = `${reqInfo}<div class="info-box">골프장 신청 완료 · 결과 발표 <b>${rd ? mdLabel(rd) : '-'}</b> (발표 후 확정 또는 불가 처리)</div>
+      body = `${reqInfo}${moveRow(r)}<div class="info-box">골프장 신청 완료 · 결과 발표 <b>${rd ? mdLabel(rd) : '-'}</b> (발표 후 확정 또는 불가 처리)</div>
         ${field('f-time', '확정 티타임', r.time || '', '예) 08시00분')}
         ${chips('f-time', ['07시00분', '08시00분', '12시00분'])}
         ${field('f-name', '예약자', r.name || CONFIG.CEO_NAME)}
         ${typeSelect(r.type)}
         ${area('f-anote', '담당자 메모 / 불가 사유', r.admin_note || '', '확정 시 참고사항, 불가 시 사유')}`;
-      btns = `<button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-plain" onclick="adminUnapply(${id})">요청으로 되돌리기</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
+      btns = `<button class="b-plain" onclick="adminDelete(${id})">삭제</button><button class="b-warn" onclick="adminDecline(${id})">예약 불가</button><button class="b-plain" onclick="adminUnapply(${id})">요청으로 되돌리기</button><button class="b-primary" id="b-go" onclick="adminConfirm(${id})">예약 확정</button>`;
     } else if (r.status === 'confirmed') {
       body = `${reqInfo}
         ${field('f-time', '티타임', r.time || '')}
@@ -944,6 +951,28 @@ function adminRevert(id) {
   const r = rows.find(x => x.id === id);
   if (!confirm('이 건을 확정 전 \'요청\' 상태로 되돌릴까요? (메일은 발송되지 않습니다)')) return;
   run(async () => { await DB.update(id, { status: 'requested', req_time: r.req_time || r.time, time: null }); toast('요청 상태로 되돌림 (메일 발송 없음)'); });
+}
+// 요청/확정대기 건 날짜 변경 (메일 없음). 구분은 새 날짜 기준으로 자동 지정, 수동 오픈일은 초기화
+function adminMove(id) {
+  const r = rows.find(x => x.id === id);
+  const v = val('f-move'); if (!v) { alert('변경할 날짜를 선택해 주세요.'); return; }
+  const [y, m, d] = v.split('-').map(Number);
+  if (y === r.year && m === r.month && d === r.day) { toast('같은 날짜입니다'); return; }
+  if (!MONTHS.some(x => x.year === y && x.month === m)) { alert('달력 범위를 벗어난 날짜입니다.'); return; }
+  const type = autoType(y, m, d);
+  if (!confirm(`${r.month}/${r.day} → ${m}/${d}(${DAY_KR[getDow(y, m, d)]}) · ${TYPE_KR[type]}(으)로 옮길까요? (메일은 발송되지 않습니다)`)) return;
+  run(async () => {
+    await DB.update(id, { year: y, month: m, day: d, type, open_date: null });
+    toast(`${m}/${d}로 날짜 변경`);
+    const i = MONTHS.findIndex(x => x.year === y && x.month === m);
+    if (i !== curIdx) { curIdx = i; onMonthChange(); }
+  });
+}
+// 요청/확정대기 건 삭제 (메일 없음)
+function adminDelete(id) {
+  const r = rows.find(x => x.id === id);
+  if (!confirm(`${r.month}/${r.day} ${r.name || ''} 건을 삭제할까요? (메일은 발송되지 않으며 되돌릴 수 없습니다)`)) return;
+  run(async () => { await DB.remove(id); toast('삭제 완료'); });
 }
 function adminUnapply(id) {
   run(async () => { await DB.update(id, { status: 'requested' }); toast('요청 상태로 되돌림'); });
